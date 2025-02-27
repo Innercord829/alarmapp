@@ -15,6 +15,7 @@ class MainApp extends StatefulWidget {
 class _MainAppState extends State<MainApp> {
   void setAlarmTest(final alarmSettings) async {
     print("Alarm Set");
+    //test
     await Alarm.set(alarmSettings: alarmSettings);
   }
 
