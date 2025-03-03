@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:alarm/alarm.dart';
+import 'package:flutter_expandable_fab/flutter_expandable_fab.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Alarm.init();
+
   runApp(const MainApp());
 }
 
@@ -16,18 +20,21 @@ class _MainAppState extends State<MainApp> {
   void setAlarmTest(final alarmSettings) async {
     print("Alarm Set");
     //test
+    await Alarm.checkAlarm();
     await Alarm.set(alarmSettings: alarmSettings);
   }
 
   void cancelAlarm(int id) async {
     List<AlarmSettings> alarms = await Alarm.getAlarms();
-    alarms.forEach((alarm) {
+    for (var alarm in alarms) {
       print(alarm.id);
-    });
-    if (alarms.length <= 0) {
-      print("No Alarms");
     }
-    await Alarm.stop(id);
+    if (alarms.isEmpty) {
+      print("No Alarms");
+    } else {
+      print("alarms exist");
+    }
+    await Alarm.stopAll();
   }
 
   bool toggled = false;
@@ -42,7 +49,6 @@ class _MainAppState extends State<MainApp> {
       vibrate: true,
       volume: 0.2,
       fadeDuration: 3.0,
-      // warningNotificationOnKill: Platform.isIOS,
       androidFullScreenIntent: true,
       notificationSettings: const NotificationSettings(
         title: 'This is the title',
@@ -54,59 +60,52 @@ class _MainAppState extends State<MainApp> {
 
     return MaterialApp(
       home: Scaffold(
+        extendBody: true,
         //Main Button
-        floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-        floatingActionButton: Container(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            verticalDirection: VerticalDirection.up,
-            children: [
-              FloatingActionButton(
-                  shape: CircleBorder(),
-                  backgroundColor: const Color.fromRGBO(82, 170, 94, 1.0),
-                  tooltip: 'Stuff',
-                  onPressed: () {
-                    setState(() {
-                      toggled = !toggled;
-                    });
-                  },
-                  child: Icon(Icons.add)),
-              Visibility(
-                visible: toggled,
-                child: FloatingActionButton(
-                    shape: CircleBorder(),
-                    backgroundColor: const Color.fromRGBO(82, 170, 94, 1.0),
-                    tooltip: 'Stuff',
-                    onPressed: () {
-                      // toggled ? toggled : !toggled;
-                    },
-                    child: Icon(Icons.abc)),
-              )
-            ],
-          ),
+        floatingActionButtonLocation: ExpandableFab.location,
+        floatingActionButton: ExpandableFab(
+          type: ExpandableFabType.up,
+          childrenAnimation: ExpandableFabAnimation.none,
+          distance: 70,
+          pos: ExpandableFabPos.center,
+          overlayStyle: ExpandableFabOverlayStyle(color: Colors.white54),
+          children: const [
+            Row(
+              children: [
+                Text('Alarm'),
+                SizedBox(width: 20),
+                FloatingActionButton.small(
+                  heroTag: null,
+                  onPressed: null,
+                  child: Icon(Icons.alarm),
+                ),
+              ],
+            ),
+            Row(
+              children: [
+                Text('Folder'),
+                SizedBox(width: 20),
+                FloatingActionButton.small(
+                  heroTag: null,
+                  onPressed: null,
+                  child: Icon(Icons.folder),
+                ),
+              ],
+            ),
+            Row(
+              children: [
+                Text('Filter'),
+                SizedBox(width: 20),
+                FloatingActionButton.small(
+                  heroTag: null,
+                  onPressed: null,
+                  child: Icon(Icons.filter_alt_rounded),
+                ),
+              ],
+            ),
+          ],
         ),
 
-        //Maybe Temporary
-        bottomNavigationBar: BottomAppBar(
-          height: 60,
-          color: const Color.fromRGBO(82, 170, 94, 1.0),
-          shape: const CircularNotchedRectangle(),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              IconButton(
-                  onPressed: null,
-                  icon: const Icon(Icons.home, color: Colors.orange)),
-              IconButton(
-                  onPressed: null,
-                  icon: const Icon(
-                    Icons.favorite,
-                    color: Colors.pink,
-                  ))
-            ],
-          ),
-        ),
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
