@@ -17,10 +17,21 @@ class MainApp extends StatefulWidget {
 }
 
 class _MainAppState extends State<MainApp> {
+  List<DateTime> alarmTimes = [];
+  String timeOfDay = "am";
+
+  void getAlarms() async {
+    List<AlarmSettings> alarms = await Alarm.getAlarms();
+    for (var alarm in alarms) {
+      alarmTimes.add(alarm.dateTime);
+    }
+    print(alarmTimes[0]);
+  }
+
   void setAlarmTest(final alarmSettings) async {
     print("Alarm Set");
     //test
-    await Alarm.checkAlarm();
+    // await Alarm.checkAlarm();
     await Alarm.set(alarmSettings: alarmSettings);
   }
 
@@ -37,13 +48,20 @@ class _MainAppState extends State<MainApp> {
     await Alarm.stopAll();
   }
 
-  bool toggled = false;
+  @override
+  void initState() {
+    // TODO: implement initState
+
+    getAlarms();
+
+    super.initState();
+  }
 
   @override
   Widget build(BuildContext context) {
     final alarmSettings = AlarmSettings(
       id: 42,
-      dateTime: DateTime.now().add(const Duration(seconds: 15)),
+      dateTime: DateTime.now().add(const Duration(seconds: 120)),
       assetAudioPath: 'assets/alarm.mp3',
       loopAudio: true,
       vibrate: true,
@@ -62,6 +80,7 @@ class _MainAppState extends State<MainApp> {
       home: Scaffold(
         extendBody: true,
         //Main Button
+        //Add Button
         floatingActionButtonLocation: ExpandableFab.location,
         floatingActionButton: ExpandableFab(
           type: ExpandableFabType.up,
@@ -69,19 +88,21 @@ class _MainAppState extends State<MainApp> {
           distance: 70,
           pos: ExpandableFabPos.center,
           overlayStyle: ExpandableFabOverlayStyle(color: Colors.white54),
-          children: const [
+          children: [
             Row(
               children: [
-                Text('Alarm'),
-                SizedBox(width: 20),
+                const Text('Alarm'),
+                const SizedBox(width: 20),
                 FloatingActionButton.small(
                   heroTag: null,
-                  onPressed: null,
-                  child: Icon(Icons.alarm),
+                  onPressed: () {
+                    setAlarmTest(alarmSettings);
+                  },
+                  child: const Icon(Icons.alarm),
                 ),
               ],
             ),
-            Row(
+            const Row(
               children: [
                 Text('Folder'),
                 SizedBox(width: 20),
@@ -92,7 +113,7 @@ class _MainAppState extends State<MainApp> {
                 ),
               ],
             ),
-            Row(
+            const Row(
               children: [
                 Text('Filter'),
                 SizedBox(width: 20),
@@ -107,22 +128,28 @@ class _MainAppState extends State<MainApp> {
         ),
 
         body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              TextButton(
-                  onPressed: () {
-                    setAlarmTest(alarmSettings);
-                  },
-                  child: Text("Set Alarm")),
-              TextButton(
-                  onPressed: () {
-                    cancelAlarm(42);
-                  },
-                  child: Text("Cancel Alarm")),
-            ],
-          ),
-        ),
+            child: ListView.builder(
+                itemCount: alarmTimes.length,
+                itemBuilder: (context, index) {
+                  if (alarmTimes[index].hour > 12) {
+                    timeOfDay = "pm";
+                  } else {
+                    timeOfDay = "am";
+                  }
+                  return Container(
+                    decoration: BoxDecoration(
+                        border: Border.all(color: Colors.black, width: 2)),
+                    child: Column(
+                      children: [
+                        Text(
+                            style: TextStyle(fontSize: 60),
+                            "${alarmTimes[index].hour}:${alarmTimes[index].second} ${timeOfDay}"),
+                        Text("${alarmTimes[index].weekday}")
+                      ],
+                    ),
+                  );
+                  // Text("${alarmTimes[index].hour}:${alarmTimes[index].second} ${timeOfDay}");
+                })),
       ),
     );
   }
