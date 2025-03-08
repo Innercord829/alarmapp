@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:alarm/alarm.dart';
 import 'package:flutter_expandable_fab/flutter_expandable_fab.dart';
@@ -18,14 +20,22 @@ class MainApp extends StatefulWidget {
 
 class _MainAppState extends State<MainApp> {
   List<DateTime> alarmTimes = [];
+  List<int> alarmIds = [];
   String timeOfDay = "am";
+  int? hourValue;
+
+  DateTime alarmTime = DateTime.now();
+  int id = Random().nextInt(100) + 1;
 
   void getAlarms() async {
     List<AlarmSettings> alarms = await Alarm.getAlarms();
     for (var alarm in alarms) {
-      alarmTimes.add(alarm.dateTime);
+      setState(() {
+        alarmTimes.add(alarm.dateTime);
+        alarmIds.add(alarm.id);
+      });
     }
-    print(alarmTimes[0]);
+    // print(alarmTimes[0]);
   }
 
   void setAlarmTest(final alarmSettings) async {
@@ -33,18 +43,21 @@ class _MainAppState extends State<MainApp> {
     //test
     // await Alarm.checkAlarm();
     await Alarm.set(alarmSettings: alarmSettings);
+    getAlarms();
   }
 
-  void cancelAlarm(int id) async {
-    List<AlarmSettings> alarms = await Alarm.getAlarms();
-    for (var alarm in alarms) {
-      print(alarm.id);
-    }
-    if (alarms.isEmpty) {
-      print("No Alarms");
-    } else {
-      print("alarms exist");
-    }
+  void setAlarm(final alarmSettings) async {
+    print("Alarm Set");
+
+    await Alarm.set(alarmSettings: alarmSettings);
+    getAlarms();
+  }
+
+  void cancelAlarms() async {
+    print("alarms canceld");
+    setState(() {
+      alarmTimes.clear();
+    });
     await Alarm.stopAll();
   }
 
@@ -53,15 +66,14 @@ class _MainAppState extends State<MainApp> {
     // TODO: implement initState
 
     getAlarms();
-
     super.initState();
   }
 
   @override
   Widget build(BuildContext context) {
-    final alarmSettings = AlarmSettings(
-      id: 42,
-      dateTime: DateTime.now().add(const Duration(seconds: 120)),
+    final alarmSettingsTest = AlarmSettings(
+      id: id,
+      dateTime: alarmTime,
       assetAudioPath: 'assets/alarm.mp3',
       loopAudio: true,
       vibrate: true,
@@ -77,80 +89,97 @@ class _MainAppState extends State<MainApp> {
     );
 
     return MaterialApp(
-      home: Scaffold(
-        extendBody: true,
-        //Main Button
-        //Add Button
-        floatingActionButtonLocation: ExpandableFab.location,
-        floatingActionButton: ExpandableFab(
-          type: ExpandableFabType.up,
-          childrenAnimation: ExpandableFabAnimation.none,
-          distance: 70,
-          pos: ExpandableFabPos.center,
-          overlayStyle: ExpandableFabOverlayStyle(color: Colors.white54),
-          children: [
-            Row(
-              children: [
-                const Text('Alarm'),
-                const SizedBox(width: 20),
-                FloatingActionButton.small(
-                  heroTag: null,
-                  onPressed: () {
-                    setAlarmTest(alarmSettings);
-                  },
-                  child: const Icon(Icons.alarm),
-                ),
-              ],
-            ),
-            const Row(
-              children: [
-                Text('Folder'),
-                SizedBox(width: 20),
-                FloatingActionButton.small(
-                  heroTag: null,
-                  onPressed: null,
-                  child: Icon(Icons.folder),
-                ),
-              ],
-            ),
-            const Row(
-              children: [
-                Text('Filter'),
-                SizedBox(width: 20),
-                FloatingActionButton.small(
-                  heroTag: null,
-                  onPressed: null,
-                  child: Icon(Icons.filter_alt_rounded),
-                ),
-              ],
-            ),
-          ],
-        ),
+      home: Builder(builder: (context) {
+        return Scaffold(
+          extendBody: true,
+          //Main Button
+          //Add Button
+          floatingActionButtonLocation: ExpandableFab.location,
+          floatingActionButton: ExpandableFab(
+            type: ExpandableFabType.up,
+            childrenAnimation: ExpandableFabAnimation.none,
+            distance: 70,
+            pos: ExpandableFabPos.center,
+            overlayStyle: ExpandableFabOverlayStyle(color: Colors.white54),
+            children: [
+              Row(
+                children: [
+                  const Text('Alarm'),
+                  const SizedBox(width: 20),
+                  FloatingActionButton.small(
+                    onPressed: () async {
+                      final TimeOfDay? selectedTime = await showTimePicker(
+                        
+                        context: context,
+                        initialTime: TimeOfDay.now(),
+                      );
+                      if (selectedTime != null) {
+                        setState(() {
+                          id = Random().nextInt(100) + 1;
+                          final now = DateTime.now();
+                          alarmTime = new DateTime(now.year, now.month, now.day,
+                              selectedTime.hour, selectedTime.minute);
+                          setAlarm(alarmSettingsTest);
+                        });
+                      }
+                      // setAlarmTest(alarmSettingsTest);
+                    },
+                    child: const Icon(Icons.alarm),
+                  ),
+                ],
+              ),
+              Row(
+                children: [
+                  Text('Test Alarm'),
+                  SizedBox(width: 20),
+                  FloatingActionButton.small(
+                    heroTag: null,
+                    onPressed: () => setAlarmTest(alarmSettingsTest),
+                    child: Icon(Icons.folder),
+                  ),
+                ],
+              ),
+              Row(
+                children: [
+                  Text('Cancel Alarms'),
+                  SizedBox(width: 20),
+                  FloatingActionButton.small(
+                    heroTag: null,
+                    onPressed: () => cancelAlarms(),
+                    child: Icon(Icons.filter_alt_rounded),
+                  ),
+                ],
+              ),
+            ],
+          ),
 
-        body: Center(
-            child: ListView.builder(
-                itemCount: alarmTimes.length,
-                itemBuilder: (context, index) {
-                  if (alarmTimes[index].hour > 12) {
-                    timeOfDay = "pm";
-                  } else {
-                    timeOfDay = "am";
-                  }
-                  return Container(
-                    decoration: BoxDecoration(
-                        border: Border.all(color: Colors.black, width: 2)),
-                    child: Column(
-                      children: [
-                        Text(
-                            style: TextStyle(fontSize: 60),
-                            "${alarmTimes[index].hour}:${alarmTimes[index].second} ${timeOfDay}"),
-                        Text("${alarmTimes[index].weekday}")
-                      ],
-                    ),
-                  );
-                  // Text("${alarmTimes[index].hour}:${alarmTimes[index].second} ${timeOfDay}");
-                })),
-      ),
+          body: Center(
+              child: ListView.builder(
+                  itemCount: alarmTimes.length,
+                  itemBuilder: (context, index) {
+                    if (alarmTimes[index].hour > 12) {
+                      timeOfDay = "pm";
+                      hourValue = alarmTimes[index].hour - 12;
+                    } else {
+                      timeOfDay = "am";
+                      hourValue = alarmTimes[index].hour;
+                    }
+                    return Container(
+                      decoration: BoxDecoration(
+                          border: Border.all(color: Colors.black, width: 2)),
+                      child: Column(
+                        children: [
+                          Text(
+                              style: TextStyle(fontSize: 60),
+                              "${hourValue}:${alarmTimes[index].minute} ${timeOfDay}"),
+                          Text("${alarmTimes[index].weekday}")
+                        ],
+                      ),
+                    );
+                    // Text("${alarmTimes[index].hour}:${alarmTimes[index].second} ${timeOfDay}");
+                  })),
+        );
+      }),
     );
   }
 }
