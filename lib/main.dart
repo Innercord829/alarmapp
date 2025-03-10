@@ -1,7 +1,9 @@
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:alarm/alarm.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_expandable_fab/flutter_expandable_fab.dart';
 
 void main() async {
@@ -20,52 +22,49 @@ class MainApp extends StatefulWidget {
 
 class _MainAppState extends State<MainApp> {
   List<DateTime> alarmTimes = [];
-  List<int> alarmIds = [];
+  // List<int> alarmIds = [];
   String timeOfDay = "am";
   int? hourValue;
 
+  late Future<List<Map>> jsonData;
+
   DateTime alarmTime = DateTime.now();
   int id = Random().nextInt(100) + 1;
-
-  void getAlarms() async {
-    List<AlarmSettings> alarms = await Alarm.getAlarms();
-    for (var alarm in alarms) {
-      setState(() {
-        alarmTimes.add(alarm.dateTime);
-        alarmIds.add(alarm.id);
-      });
-    }
-    // print(alarmTimes[0]);
-  }
 
   void setAlarmTest(final alarmSettings) async {
     print("Alarm Set");
     //test
     // await Alarm.checkAlarm();
     await Alarm.set(alarmSettings: alarmSettings);
-    getAlarms();
   }
 
   void setAlarm(final alarmSettings) async {
     print("Alarm Set");
 
     await Alarm.set(alarmSettings: alarmSettings);
-    getAlarms();
   }
 
   void cancelAlarms() async {
-    print("alarms canceld");
+    print("alarms canceled");
     setState(() {
       alarmTimes.clear();
     });
     await Alarm.stopAll();
   }
 
+  Future<List<Map>> readJsonFile(String assetPath) async {
+    var input = await rootBundle.loadString(assetPath);
+    var map = jsonDecode(input);
+    
+    return List<Map>.from(map['alarms']);
+  }
+
   @override
   void initState() {
     // TODO: implement initState
+    // jsonData = readJsonFile("assets/data.json");
 
-    getAlarms();
+    
     super.initState();
   }
 
@@ -109,7 +108,6 @@ class _MainAppState extends State<MainApp> {
                   FloatingActionButton.small(
                     onPressed: () async {
                       final TimeOfDay? selectedTime = await showTimePicker(
-                        
                         context: context,
                         initialTime: TimeOfDay.now(),
                       );
@@ -117,7 +115,7 @@ class _MainAppState extends State<MainApp> {
                         setState(() {
                           id = Random().nextInt(100) + 1;
                           final now = DateTime.now();
-                          alarmTime = new DateTime(now.year, now.month, now.day,
+                          alarmTime = DateTime(now.year, now.month, now.day,
                               selectedTime.hour, selectedTime.minute);
                           setAlarm(alarmSettingsTest);
                         });
@@ -153,31 +151,66 @@ class _MainAppState extends State<MainApp> {
             ],
           ),
 
-          body: Center(
-              child: ListView.builder(
-                  itemCount: alarmTimes.length,
-                  itemBuilder: (context, index) {
-                    if (alarmTimes[index].hour > 12) {
-                      timeOfDay = "pm";
-                      hourValue = alarmTimes[index].hour - 12;
-                    } else {
-                      timeOfDay = "am";
-                      hourValue = alarmTimes[index].hour;
-                    }
-                    return Container(
-                      decoration: BoxDecoration(
-                          border: Border.all(color: Colors.black, width: 2)),
-                      child: Column(
-                        children: [
-                          Text(
-                              style: TextStyle(fontSize: 60),
-                              "${hourValue}:${alarmTimes[index].minute} ${timeOfDay}"),
-                          Text("${alarmTimes[index].weekday}")
-                        ],
-                      ),
-                    );
-                    // Text("${alarmTimes[index].hour}:${alarmTimes[index].second} ${timeOfDay}");
-                  })),
+          body: FutureBuilder<List<Map>>(
+            future: readJsonFile("assets/data.json"),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              } else if (snapshot.hasError) {
+                return Center(child: Text('Error: ${snapshot.error}'));
+              } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                return const Center(child: Text('No data available'));
+              } else {
+                //readJsonFile has to return List<Map>.from(map['alarms']);
+                //Get data from data.json - Alarms
+                var data = snapshot.data!;
+                var item = data[0]; //data[index];
+                // print(item["id"]);
+
+                //readJsonFile has to return List<Map>.from(map['folders']);
+                //Get data from data.json - Folders - Alarms
+                // var data = snapshot.data!;
+                // var item = data[0]; //data[index];
+                // item["alarms"];
+                // var alarmsList = List<Map>.from(item["alarms"]);
+                // var alarmItem = alarmsList[0];
+                // print(alarmItem["id"]);
+
+                // return Placeholder();
+                return Center(
+                    child: ListView.builder(
+                        itemCount: data.length,
+                        itemBuilder: (context, index) {
+                          var item = data[index];
+                          //Convert string back to datetime object to get hour/minute values
+                          DateTime datetime = DateTime.parse(item["datetime"]);
+                          if (datetime.hour > 12) {
+                            timeOfDay = "pm";
+                            hourValue = datetime.hour - 12;
+                          } else {
+                            timeOfDay = "am";
+                            hourValue = datetime.hour;
+                          }
+                          return Container(
+                            decoration: BoxDecoration(
+                                border:
+                                    Border.all(color: Colors.black, width: 2)),
+                            child: Column(
+                              children: [
+                                Text(
+                                    style: TextStyle(fontSize: 60),
+                                    // "${hourValue}:${alarmTimes[index].minute} ${timeOfDay}"
+                                    "${hourValue}:${datetime.minute} ${timeOfDay}"),
+                                Text(
+                                    // "${alarmTimes[index].weekday}"
+                                    "${datetime.weekday}"),
+                              ],
+                            ),
+                          );
+                        }));
+              }
+            },
+          ),
         );
       }),
     );

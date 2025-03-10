@@ -1,10 +1,15 @@
 import 'package:alarm/alarm.dart';
 
 class Alarm {
-  String? folderName;
-  int? folderId;
-  AlarmSettings? settings;
+  int id;
+  AlarmSettings settings;
+  int folderId;
+  String folderName;
+
+  Alarm(
+    this.id,
+    this.settings,
+    this.folderId,
+    this.folderName
+  );
 }
-
-
-
