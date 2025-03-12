@@ -1,15 +1,18 @@
 import 'package:alarm/alarm.dart';
 
 class Alarm {
-  int id;
-  AlarmSettings settings;
-  int folderId;
-  String folderName;
+  late AlarmSettings? settings;
 
   Alarm(
-    this.id,
     this.settings,
-    this.folderId,
-    this.folderName
   );
+
+  Alarm.fromJson(Map<String, dynamic> json) {
+    settings = json['settings'];
+  }
+  Map<String, dynamic> toJson() {
+    final Map<String, dynamic> data = new Map<String, dynamic>();
+    data['settings'] = settings;
+    return data;
+  }
 }

@@ -1,10 +1,12 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:alarm/alarm.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_expandable_fab/flutter_expandable_fab.dart';
+import 'package:path_provider/path_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,50 +23,171 @@ class MainApp extends StatefulWidget {
 }
 
 class _MainAppState extends State<MainApp> {
-  List<DateTime> alarmTimes = [];
-  // List<int> alarmIds = [];
   String timeOfDay = "am";
   int? hourValue;
-
-  late Future<List<Map>> jsonData;
-
   DateTime alarmTime = DateTime.now();
   int id = Random().nextInt(100) + 1;
 
-  void setAlarmTest(final alarmSettings) async {
-    print("Alarm Set");
-    //test
-    // await Alarm.checkAlarm();
+  List<Map<String, dynamic>> _alarms = [];
+
+  Future<void> loadAlarms() async {
+    final directory = await getApplicationDocumentsDirectory();
+    final localFile = File('${directory.path}/data.json');
+
+    if (!await localFile.exists()) {
+      String assetJson = await rootBundle.loadString('assets/data.json');
+      await localFile.writeAsString(assetJson);
+    }
+
+    String jsonString = await localFile.readAsString();
+    Map<String, dynamic> jsonData = jsonDecode(jsonString);
+
+    setState(() {
+      _alarms = List<Map<String, dynamic>>.from(jsonData["alarms"]);
+    });
+  }
+
+  Future<void> ensureJsonFileIsValid() async {
+    final directory = await getApplicationDocumentsDirectory();
+    final localFile = File('${directory.path}/data.json');
+
+    if (!await localFile.exists()) {
+      // If the file doesn't exist, restore from assets
+      String assetJson = await rootBundle.loadString('assets/data.json');
+      await localFile.writeAsString(assetJson);
+    } else {
+      // If file exists but is empty or corrupted, restore default structure
+      String jsonString = await localFile.readAsString();
+      if (jsonString.trim().isEmpty) {
+        Map<String, dynamic> defaultJson = {
+          "alarms": [],
+          "folders": [],
+        };
+        await localFile.writeAsString(jsonEncode(defaultJson));
+      }
+    }
+  }
+
+  Future<void> deleteAlarmById(int alarmId) async {
+    final directory = await getApplicationDocumentsDirectory();
+    final localFile = File('${directory.path}/data.json');
+
+    String jsonString = await localFile.readAsString();
+    Map<String, dynamic> jsonData = jsonDecode(jsonString);
+
+    // Remove the alarm with the given ID
+    jsonData["alarms"]
+        .removeWhere((alarm) => alarm['settings']["id"] == alarmId);
+
+    setState(() {
+      _alarms.removeWhere((alarm) => alarm["settings"]["id"] == alarmId);
+    });
+    // Write back to file
+    await localFile.writeAsString(jsonEncode(jsonData), flush: true);
+
+    print("Alarm with ID $alarmId deleted successfully!");
+  }
+
+  void setAlarmTest(final alarmSettings, var alarmSettingsToSave) async {
+    // await readAlarmData(file);
+    try {
+      // Get local file path
+      final directory = await getApplicationDocumentsDirectory();
+      final localFile = File('${directory.path}/data.json');
+
+      // Check if the file exists locally
+      if (!await localFile.exists()) {
+        // If not, copy it from assets
+        String assetJson = await rootBundle.loadString('assets/data.json');
+        await localFile.writeAsString(assetJson);
+      }
+      // Read JSON from the local file
+      String jsonString = await localFile.readAsString();
+      Map<String, dynamic> jsonData = jsonDecode(jsonString);
+
+      // New alarm to add
+      Map<String, dynamic> newAlarm = {"settings": alarmSettingsToSave};
+      // Add alarm to the list
+      jsonData["alarms"].add(newAlarm);
+
+      // Add alarm inside "School" folder if it exists
+      // for (var folder in jsonData["folders"]) {
+      //   if (folder["name"] == "School") {
+      //     folder["alarms"].add(newAlarm);
+      //   }
+      // }
+
+      // Write updated JSON back to the local file
+      await localFile.writeAsString(jsonEncode(jsonData), flush: true);
+      setState(() {
+        _alarms.add(newAlarm);
+      });
+      print("New alarm added successfully!");
+    } catch (e) {
+      print("Error modifying JSON: $e");
+    }
+
     await Alarm.set(alarmSettings: alarmSettings);
   }
 
   void setAlarm(final alarmSettings) async {
-    print("Alarm Set");
-
     await Alarm.set(alarmSettings: alarmSettings);
   }
 
   void cancelAlarms() async {
     print("alarms canceled");
-    setState(() {
-      alarmTimes.clear();
-    });
+
     await Alarm.stopAll();
   }
 
-  Future<List<Map>> readJsonFile(String assetPath) async {
-    var input = await rootBundle.loadString(assetPath);
-    var map = jsonDecode(input);
-    
-    return List<Map>.from(map['alarms']);
+  //Gets alarms that are not inside a folder
+  Future<List<Map>> readJsonFile() async {
+    final directory = await getApplicationDocumentsDirectory();
+    final localFile = File('${directory.path}/data.json');
+    // Check if the file exists locally
+    if (!await localFile.exists()) {
+      // If not, copy it from assets
+      String assetJson = await rootBundle.loadString('assets/data.json');
+      await localFile.writeAsString(assetJson);
+    }
+    // Read JSON from the local file
+    String jsonString = await localFile.readAsString();
+    Map<dynamic, dynamic> jsonData = jsonDecode(jsonString);
+    return List<Map>.from(jsonData['alarms']);
+  }
+
+  Future<List<Map>> findAlarmsById(int alarmId) async {
+    List<Map> alarms = await readJsonFile();
+
+    // Filter alarms by the given id
+    List<Map> filteredAlarms = alarms.where((alarm) {
+      return alarm["id"] == alarmId;
+    }).toList();
+    // print(filteredAlarms);
+    return filteredAlarms;
+  }
+
+  Future<List<Map>> readJsonFileFolders() async {
+    final directory = await getApplicationDocumentsDirectory();
+    final localFile = File('${directory.path}/data.json');
+    // Check if the file exists locally
+    if (!await localFile.exists()) {
+      // If not, copy it from assets
+      String assetJson = await rootBundle.loadString('assets/data.json');
+      await localFile.writeAsString(assetJson);
+    }
+    // Read JSON from the local file
+    String jsonString = await localFile.readAsString();
+    Map<String, dynamic> jsonData = jsonDecode(jsonString);
+
+    return List<Map>.from(jsonData['folders']);
   }
 
   @override
   void initState() {
     // TODO: implement initState
-    // jsonData = readJsonFile("assets/data.json");
-
-    
+    // ensureJsonFileIsValid();
+    loadAlarms();
     super.initState();
   }
 
@@ -86,6 +209,24 @@ class _MainAppState extends State<MainApp> {
         // icon: 'notification_icon',
       ),
     );
+    Map<String, dynamic> alarmSettingsToSave = {
+      "id": id,
+      "dateTime": alarmTime.toString(),
+      "assetAudioPath": 'assets/alarm.mp3',
+      "loopAudio": true,
+      "vibrate": true,
+      "volume": 0.2,
+      "fadeDuration": 3.0,
+      "androidFullScreenIntent": true,
+      "notificationSettings": const NotificationSettings(
+        title: 'This is the title',
+        body: 'This is the body',
+        stopButton: 'Stop the alarm',
+        // icon: 'notification_icon',
+      ),
+    };
+
+    double height = MediaQuery.sizeOf(context).height;
 
     return MaterialApp(
       home: Builder(builder: (context) {
@@ -117,7 +258,7 @@ class _MainAppState extends State<MainApp> {
                           final now = DateTime.now();
                           alarmTime = DateTime(now.year, now.month, now.day,
                               selectedTime.hour, selectedTime.minute);
-                          setAlarm(alarmSettingsTest);
+                          setAlarmTest(alarmSettingsTest, alarmSettingsToSave);
                         });
                       }
                       // setAlarmTest(alarmSettingsTest);
@@ -132,7 +273,8 @@ class _MainAppState extends State<MainApp> {
                   SizedBox(width: 20),
                   FloatingActionButton.small(
                     heroTag: null,
-                    onPressed: () => setAlarmTest(alarmSettingsTest),
+                    onPressed: () =>
+                        setAlarmTest(alarmSettingsTest, alarmSettingsToSave),
                     child: Icon(Icons.folder),
                   ),
                 ],
@@ -151,65 +293,121 @@ class _MainAppState extends State<MainApp> {
             ],
           ),
 
-          body: FutureBuilder<List<Map>>(
-            future: readJsonFile("assets/data.json"),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
-              } else if (snapshot.hasError) {
-                return Center(child: Text('Error: ${snapshot.error}'));
-              } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                return const Center(child: Text('No data available'));
-              } else {
-                //readJsonFile has to return List<Map>.from(map['alarms']);
-                //Get data from data.json - Alarms
-                var data = snapshot.data!;
-                var item = data[0]; //data[index];
-                // print(item["id"]);
-
-                //readJsonFile has to return List<Map>.from(map['folders']);
-                //Get data from data.json - Folders - Alarms
-                // var data = snapshot.data!;
-                // var item = data[0]; //data[index];
-                // item["alarms"];
-                // var alarmsList = List<Map>.from(item["alarms"]);
-                // var alarmItem = alarmsList[0];
-                // print(alarmItem["id"]);
-
-                // return Placeholder();
-                return Center(
-                    child: ListView.builder(
-                        itemCount: data.length,
-                        itemBuilder: (context, index) {
-                          var item = data[index];
-                          //Convert string back to datetime object to get hour/minute values
-                          DateTime datetime = DateTime.parse(item["datetime"]);
-                          if (datetime.hour > 12) {
-                            timeOfDay = "pm";
-                            hourValue = datetime.hour - 12;
-                          } else {
-                            timeOfDay = "am";
-                            hourValue = datetime.hour;
-                          }
-                          return Container(
-                            decoration: BoxDecoration(
-                                border:
-                                    Border.all(color: Colors.black, width: 2)),
-                            child: Column(
-                              children: [
-                                Text(
-                                    style: TextStyle(fontSize: 60),
-                                    // "${hourValue}:${alarmTimes[index].minute} ${timeOfDay}"
-                                    "${hourValue}:${datetime.minute} ${timeOfDay}"),
-                                Text(
-                                    // "${alarmTimes[index].weekday}"
-                                    "${datetime.weekday}"),
-                              ],
-                            ),
-                          );
-                        }));
-              }
-            },
+          body: Column(
+            children: [
+              //Alarms that arent in folder
+              FutureBuilder<List<Map>>(
+                future: readJsonFile(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  } else if (snapshot.hasError) {
+                    return Center(child: Text('Error: ${snapshot.error}'));
+                  } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                    return const Center(child: Text('No data available'));
+                  } else {
+                    //Get data from data.json - Alarms
+                    var data = snapshot.data!;
+                    // findAlarmsById(63);
+                    print(data);
+                    //Display for each alarm
+                    return SizedBox(
+                      height: height / 2,
+                      child: ListView.builder(
+                          itemCount: _alarms.length,
+                          itemBuilder: (context, index) {
+                            var alarmData = _alarms[index];
+                            int id = alarmData["settings"]["id"];
+                            // print(alarmData["settings"]["dateTime"]);
+                            // Convert string back to datetime object to get hour/minute values
+                            DateTime datetime = DateTime.parse(
+                                alarmData["settings"]["dateTime"]);
+                            if (datetime.hour > 12) {
+                              timeOfDay = "pm";
+                              hourValue = datetime.hour - 12;
+                            } else {
+                              timeOfDay = "am";
+                              hourValue = datetime.hour;
+                            }
+                            return Container(
+                              decoration: BoxDecoration(
+                                  border: Border.all(
+                                      color: Colors.black, width: 2)),
+                              child: Column(
+                                children: [
+                                  // Text("Test"),
+                                  IconButton(
+                                      onPressed: () => deleteAlarmById(id),
+                                      icon: Icon(Icons.delete)),
+                                  Text(
+                                      style: TextStyle(fontSize: 60),
+                                      // "${hourValue}:${alarmTimes[index].minute} ${timeOfDay}"
+                                      "${hourValue}:${datetime.minute} ${timeOfDay}"),
+                                  Text(
+                                      // "${alarmTimes[index].weekday}"
+                                      "${datetime.weekday}"),
+                                ],
+                              ),
+                            );
+                          }),
+                    );
+                  }
+                },
+              ),
+              //Folders
+              FutureBuilder<List<Map>>(
+                future: readJsonFileFolders(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  } else if (snapshot.hasError) {
+                    return Center(child: Text('Error: ${snapshot.error}'));
+                  } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                    return const Center(child: Text('No data available'));
+                  } else {
+                    var data = snapshot.data!;
+                    //Display for each Folder
+                    return SizedBox(
+                      height: height / 2,
+                      child: ListView.builder(
+                          itemCount: data.length,
+                          itemBuilder: (context, index) {
+                            var folder = data[index];
+                            var alarmsListInFolder =
+                                List<Map>.from(folder['alarms']);
+                            var alarmInFolder = alarmsListInFolder[index];
+                            //Convert string back to datetime object to get hour/minute values
+                            DateTime datetime =
+                                DateTime.parse(alarmInFolder["datetime"]);
+                            if (datetime.hour > 12) {
+                              timeOfDay = "pm";
+                              hourValue = datetime.hour - 12;
+                            } else {
+                              timeOfDay = "am";
+                              hourValue = datetime.hour;
+                            }
+                            return Container(
+                              decoration: BoxDecoration(
+                                  border: Border.all(
+                                      color: Colors.black, width: 2)),
+                              child: Column(
+                                children: [
+                                  Text(
+                                      style: TextStyle(fontSize: 60),
+                                      folder["name"]),
+                                  IconButton(
+                                    icon: Icon(Icons.abc),
+                                    onPressed: null,
+                                  ),
+                                ],
+                              ),
+                            );
+                          }),
+                    );
+                  }
+                },
+              ),
+            ],
           ),
         );
       }),
