@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:alarm/alarm.dart';
 import 'package:flutter/services.dart';
@@ -39,7 +40,7 @@ class _MainAppState extends State<MainApp> {
     final directory = await getApplicationDocumentsDirectory();
     final localFile = File('${directory.path}/data.json');
 
-    if (await localFile.exists()) {
+    if (!await localFile.exists()) {
       // If the file doesn't exist, restore from assets
       String assetJson = await rootBundle.loadString('assets/data.json');
       await localFile.writeAsString(assetJson);
@@ -103,12 +104,14 @@ class _MainAppState extends State<MainApp> {
     print("Alarm with ID $alarmId deleted successfully!");
   }
 
-  void setRepeats(var alarmSettings) async {
+  Future<void> setRepeats(var alarmSettings) async {
+    repeatIds = [];
     DateTime now = DateTime.now();
 
     int selectedWeekDay = alarmTime.weekday; // 1 = Monday, 7 = Sunday
     for (int i = 0; i < repeatAlarm.length; i++) {
       if (repeatAlarm[i]) {
+        print(i);
         int daysToAdd = ((i + 1) - selectedWeekDay + 7) % 7;
         if (daysToAdd == 0 &&
             (alarmTime.hour < now.hour ||
@@ -117,13 +120,11 @@ class _MainAppState extends State<MainApp> {
           // If today is the target day but the time has passed, schedule for next week
           daysToAdd = 7;
         }
-        setState(() {
-          alarmId = DateTime.now().millisecondsSinceEpoch.remainder(100000);
-          alarmTime = alarmTime.add(Duration(days: daysToAdd));
-          repeatIds.add({"id": alarmId});
-        });
-        await Future.delayed(Duration(seconds: 1));
+        alarmTime = alarmTime.add(Duration(days: daysToAdd));
+        alarmId = Random().nextInt(100) + 1;
         setAlarm(alarmSettings);
+        await Future.delayed(Duration(seconds: 2));
+        repeatIds.add({"id": alarmId});
       }
     }
     repeatAlarm = List.filled(7, false);
@@ -134,13 +135,11 @@ class _MainAppState extends State<MainApp> {
       final now = DateTime.now();
       if (selectedTime.isBefore(TimeOfDay.now())) {
         setState(() {
-          alarmId = DateTime.now().millisecondsSinceEpoch.remainder(100000);
           alarmTime = DateTime(alarmTime.year, alarmTime.month,
               alarmTime.day + 1, selectedTime.hour, selectedTime.minute);
         });
       } else {
         setState(() {
-          alarmId = DateTime.now().millisecondsSinceEpoch.remainder(100000);
           alarmTime = DateTime(now.year, now.month, now.day, selectedTime.hour,
               selectedTime.minute);
         });
@@ -179,10 +178,11 @@ class _MainAppState extends State<MainApp> {
     // print("Data: $jsonData");
     // Write updated JSON back to the local file
     await localFile.writeAsString(jsonEncode(jsonData), flush: true);
+    print(jsonData);
   }
 
   //Set a single alarm
-  void setAlarm(var alarmSettings) async {
+  Future<void> setAlarm(var alarmSettings) async {
     try {
       await Alarm.set(alarmSettings: alarmSettings);
     } catch (e) {
@@ -194,12 +194,6 @@ class _MainAppState extends State<MainApp> {
     print("alarms canceled");
     // deleteAlarmById(52);
     await Alarm.stopAll();
-  }
-
-  void updateSaveData() {
-    setState(() {
-      alarmSettingsToSavePreChange = alarmSettingsToSave;
-    });
   }
 
   void cancelAlarmById(int id) async {
@@ -294,32 +288,6 @@ class _MainAppState extends State<MainApp> {
             children: [
               Row(
                 children: [
-                  const Text('Alarm'),
-                  const SizedBox(width: 20),
-                  FloatingActionButton.small(
-                    onPressed: () async {
-                      final TimeOfDay? selectedTime = await showTimePicker(
-                        context: context,
-                        initialTime: TimeOfDay.now(),
-                      );
-                      if (selectedTime != null) {
-                        setState(() {
-                          final now = DateTime.now();
-                          alarmTime = DateTime(now.year, now.month, now.day,
-                              selectedTime.hour, selectedTime.minute);
-                          alarmId = DateTime.now()
-                              .millisecondsSinceEpoch
-                              .remainder(100000);
-                          setAlarm(alarmSettingsTest);
-                        });
-                      }
-                    },
-                    child: const Icon(Icons.alarm_add),
-                  ),
-                ],
-              ),
-              Row(
-                children: [
                   Text('Test Alarm'),
                   SizedBox(width: 20),
                   FloatingActionButton.small(
@@ -349,196 +317,195 @@ class _MainAppState extends State<MainApp> {
                     onPressed: () => showDialog(
                         context: context,
                         builder: (context) {
-                          return StatefulBuilder(builder: (context, setState) {
-                            return Dialog(
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12.0)),
-                              child: SizedBox(
-                                height: 300.0,
-                                width: 300.0,
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: <Widget>[
-                                    //Time Selection
-                                    Row(
+                          return Dialog(
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12.0)),
+                            child: SizedBox(
+                              height: 300.0,
+                              width: 300.0,
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: <Widget>[
+                                  //Time Selection
+                                  Row(
+                                    children: [
+                                      Text(
+                                          style: TextStyle(fontSize: 18),
+                                          "Select Time: "),
+                                      IconButton(
+                                          onPressed: () async {
+                                            TimeOfDay? selectedTime =
+                                                await showTimePicker(
+                                              context: context,
+                                              initialTime: TimeOfDay.now(),
+                                            );
+                                            updateTime(selectedTime);
+                                          },
+                                          icon: Icon(Icons.alarm)),
+                                    ],
+                                  ),
+                                  //Day Selection
+                                  SizedBox(
+                                    height: 100,
+                                    width: 300,
+                                    child: ListView(
+                                      scrollDirection: Axis.horizontal,
                                       children: [
-                                        Text(
-                                            style: TextStyle(fontSize: 18),
-                                            "Select Time: "),
                                         IconButton(
-                                            onPressed: () async {
-                                              TimeOfDay? selectedTime =
-                                                  await showTimePicker(
-                                                context: context,
-                                                initialTime: TimeOfDay.now(),
-                                              );
-                                              updateTime(selectedTime);
-                                            },
-                                            icon: Icon(Icons.alarm)),
-                                      ],
-                                    ),
-                                    //Day Selection
-                                    SizedBox(
-                                      height: 100,
-                                      width: 300,
-                                      child: ListView(
-                                        scrollDirection: Axis.horizontal,
-                                        children: [
-                                          IconButton(
-                                              onPressed: () {
-                                                setState(() {
-                                                  repeatAlarm[6] =
-                                                      !repeatAlarm[6];
-                                                });
-                                                // repeatAlarm[6] =
-                                                //     !repeatAlarm[6];
-                                              },
-                                              icon: repeatAlarm[6]
-                                                  ? Icon(Mdi.alphaSCircle)
-                                                  : Icon(Mdi
-                                                      .alphaSCircleOutline)), //6 - Sunday
-                                          IconButton(
-                                              onPressed: () {
-                                                setState(() {});
-                                                repeatAlarm[0] =
-                                                    !repeatAlarm[0];
-                                              },
-                                              icon: repeatAlarm[0]
-                                                  ? Icon(Mdi.alphaMCircle)
-                                                  : Icon(Mdi
-                                                      .alphaMCircleOutline)), //0 Monday
-                                          IconButton(
-                                              onPressed: () {
-                                                setState(() {});
-
-                                                repeatAlarm[1] =
-                                                    !repeatAlarm[1];
-                                              },
-                                              icon: repeatAlarm[1]
-                                                  ? Icon(Mdi.alphaTCircle)
-                                                  : Icon(Mdi
-                                                      .alphaTCircleOutline)), //1 Tuesday
-                                          IconButton(
-                                              onPressed: () {
-                                                setState(() {});
-
-                                                repeatAlarm[2] =
-                                                    !repeatAlarm[2];
-                                              },
-                                              icon: repeatAlarm[2]
-                                                  ? Icon(Mdi.alphaWCircle)
-                                                  : Icon(Mdi
-                                                      .alphaWCircleOutline)), //2 Wednesday
-                                          IconButton(
-                                              onPressed: () {
-                                                setState(() {});
-
-                                                repeatAlarm[3] =
-                                                    !repeatAlarm[3];
-                                              },
-                                              icon: repeatAlarm[3]
-                                                  ? Icon(Mdi.alphaTCircle)
-                                                  : Icon(Mdi
-                                                      .alphaTCircleOutline)), //3 Thursday
-                                          IconButton(
-                                              onPressed: () {
-                                                setState(() {});
-
-                                                repeatAlarm[4] =
-                                                    !repeatAlarm[4];
-                                              },
-                                              icon: repeatAlarm[4]
-                                                  ? Icon(Mdi.alphaFCircle)
-                                                  : Icon(Mdi
-                                                      .alphaFCircleOutline)), //4 Friday
-                                          IconButton(
-                                              onPressed: () {
-                                                setState(() {});
-                                                repeatAlarm[5] =
-                                                    !repeatAlarm[5];
-                                              },
-                                              icon: repeatAlarm[5]
-                                                  ? Icon(Mdi.alphaSCircle)
-                                                  : Icon(Mdi
-                                                      .alphaSCircleOutline)), //5 Saturadye
-                                        ],
-                                      ),
-                                    ),
-
-                                    //Folder Selection
-                                    DropdownMenu(
-                                      enableFilter: true,
-                                      requestFocusOnTap: true,
-                                      leadingIcon: const Icon(Icons.search),
-                                      label: const Text('Folders'),
-                                      inputDecorationTheme:
-                                          const InputDecorationTheme(
-                                        filled: true,
-                                        contentPadding:
-                                            EdgeInsets.symmetric(vertical: 5.0),
-                                      ),
-                                      onSelected: (String? selectedFolder) {
-                                        if (selectedFolder != null) {
-                                          print("Folder $selectedFolder");
-
-                                          //Place alarm in folder on select and not in the alarms within the json
-                                        } else {
-                                          print("No Folder Selected");
-                                          //Place alarm in the alarms section of the json and set the alarm
-                                        }
-                                      },
-                                      dropdownMenuEntries: _folders
-                                          .map<DropdownMenuEntry<String>>(
-                                              (folder) {
-                                        return DropdownMenuEntry<String>(
-                                          value: folder["folderName"],
-                                          label: folder["folderName"],
-                                        );
-                                      }).toList(),
-                                    ),
-
-                                    //Buttons
-                                    Row(
-                                      children: [
-                                        TextButton(
                                             onPressed: () {
-                                              repeatAlarm =
-                                                  List.filled(7, false);
-                                              Navigator.pop(context);
+                                              setState(() {
+                                                repeatAlarm[6] =
+                                                    !repeatAlarm[6];
+                                              });
+                                              // repeatAlarm[6] =
+                                              //     !repeatAlarm[6];
                                             },
-                                            child: Text("Cancel")),
-                                        TextButton(
-                                            onPressed: () async {
-                                              if (repeatAlarm.contains(true)) {
-                                                setAlarm(alarmSettingsTest);
-                                                await Future.delayed(
-                                                    Duration(seconds: 1));
-                                                setRepeats(alarmSettingsTest);
-                                                writeToJson(
-                                                    "alarms",
-                                                    "settings",
-                                                    "repeatAlarmIds",
-                                                    alarmSettingsToSavePreChange,
-                                                    repeatIds);
-                                              } else {
-                                                setAlarm(alarmSettingsTest);
-                                                writeToJson(
-                                                    "alarms",
-                                                    "settings",
-                                                    "repeatAlarmIds",
-                                                    alarmSettingsToSave,
-                                                    repeatIds);
-                                              }
-                                              Navigator.pop(context);
+                                            icon: repeatAlarm[6]
+                                                ? Icon(Mdi.alphaSCircle)
+                                                : Icon(Mdi
+                                                    .alphaSCircleOutline)), //6 - Sunday
+                                        IconButton(
+                                            onPressed: () {
+                                              setState(() {});
+                                              repeatAlarm[0] = !repeatAlarm[0];
                                             },
-                                            child: Text("Confirm"))
+                                            icon: repeatAlarm[0]
+                                                ? Icon(Mdi.alphaMCircle)
+                                                : Icon(Mdi
+                                                    .alphaMCircleOutline)), //0 Monday
+                                        IconButton(
+                                            onPressed: () {
+                                              setState(() {});
+
+                                              repeatAlarm[1] = !repeatAlarm[1];
+                                            },
+                                            icon: repeatAlarm[1]
+                                                ? Icon(Mdi.alphaTCircle)
+                                                : Icon(Mdi
+                                                    .alphaTCircleOutline)), //1 Tuesday
+                                        IconButton(
+                                            onPressed: () {
+                                              setState(() {});
+
+                                              repeatAlarm[2] = !repeatAlarm[2];
+                                            },
+                                            icon: repeatAlarm[2]
+                                                ? Icon(Mdi.alphaWCircle)
+                                                : Icon(Mdi
+                                                    .alphaWCircleOutline)), //2 Wednesday
+                                        IconButton(
+                                            onPressed: () {
+                                              setState(() {});
+
+                                              repeatAlarm[3] = !repeatAlarm[3];
+                                            },
+                                            icon: repeatAlarm[3]
+                                                ? Icon(Mdi.alphaTCircle)
+                                                : Icon(Mdi
+                                                    .alphaTCircleOutline)), //3 Thursday
+                                        IconButton(
+                                            onPressed: () {
+                                              setState(() {});
+
+                                              repeatAlarm[4] = !repeatAlarm[4];
+                                            },
+                                            icon: repeatAlarm[4]
+                                                ? Icon(Mdi.alphaFCircle)
+                                                : Icon(Mdi
+                                                    .alphaFCircleOutline)), //4 Friday
+                                        IconButton(
+                                            onPressed: () {
+                                              setState(() {});
+                                              repeatAlarm[5] = !repeatAlarm[5];
+                                            },
+                                            icon: repeatAlarm[5]
+                                                ? Icon(Mdi.alphaSCircle)
+                                                : Icon(Mdi
+                                                    .alphaSCircleOutline)), //5 Saturadye
                                       ],
                                     ),
-                                  ],
-                                ),
+                                  ),
+
+                                  //Folder Selection
+                                  DropdownMenu(
+                                    enableFilter: true,
+                                    requestFocusOnTap: true,
+                                    leadingIcon: const Icon(Icons.search),
+                                    label: const Text('Folders'),
+                                    inputDecorationTheme:
+                                        const InputDecorationTheme(
+                                      filled: true,
+                                      contentPadding:
+                                          EdgeInsets.symmetric(vertical: 5.0),
+                                    ),
+                                    onSelected: (String? selectedFolder) {
+                                      if (selectedFolder != null) {
+                                        print("Folder $selectedFolder");
+
+                                        //Place alarm in folder on select and not in the alarms within the json
+                                      } else {
+                                        print("No Folder Selected");
+                                        //Place alarm in the alarms section of the json and set the alarm
+                                      }
+                                    },
+                                    dropdownMenuEntries: _folders
+                                        .map<DropdownMenuEntry<String>>(
+                                            (folder) {
+                                      return DropdownMenuEntry<String>(
+                                        value: folder["folderName"],
+                                        label: folder["folderName"],
+                                      );
+                                    }).toList(),
+                                  ),
+
+                                  //Buttons
+                                  Row(
+                                    children: [
+                                      TextButton(
+                                          onPressed: () {
+                                            repeatAlarm = List.filled(7, false);
+                                            Navigator.pop(context);
+                                          },
+                                          child: Text("Cancel")),
+                                      TextButton(
+                                          onPressed: () async {
+                                            if (repeatAlarm.contains(true)) {
+                                              setState(() {
+                                                repeatIds = [];
+                                                alarmId =
+                                                    Random().nextInt(100) + 1;
+                                                alarmSettingsToSavePreChange =
+                                                    alarmSettingsToSave;
+                                              });
+                                              await setAlarm(alarmSettingsTest);
+                                              await setRepeats(alarmSettingsTest);
+                                              
+                                              writeToJson(
+                                                  "alarms",
+                                                  "settings",
+                                                  "repeatAlarmIds",
+                                                  alarmSettingsToSavePreChange,
+                                                  repeatIds);
+                                            } else {
+                                              alarmId =
+                                                  Random().nextInt(100) + 1;
+                                              await setAlarm(alarmSettingsTest);
+                                              writeToJson(
+                                                  "alarms",
+                                                  "settings",
+                                                  "repeatAlarmIds",
+                                                  alarmSettingsToSave,
+                                                  repeatIds);
+                                            }
+                                            Navigator.pop(context);
+                                          },
+                                          child: Text("Confirm"))
+                                    ],
+                                  ),
+                                ],
                               ),
-                            );
-                          });
+                            ),
+                          );
                         }),
                     child: Icon(Icons.folder),
                   ),
