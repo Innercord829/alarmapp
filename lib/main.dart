@@ -25,13 +25,14 @@ class _MainAppState extends State<MainApp> {
   String timeOfDay = "am";
   int? hourValue;
   DateTime alarmTime = DateTime.now();
-  int alarmId = 1000;
+  int alarmId = Random().nextInt(100) + 1;
   bool vibrate = true;
   List<Map<String, dynamic>> repeatIds = [];
   AlarmSettings? alarmSettingsTest;
   Map<String, dynamic>? alarmSettingsToSave;
   Map<String, dynamic>? alarmSettingsToSavePreChange = {};
   String? selectedFolder;
+  final folderNameController = TextEditingController();
 
   double alarmContainerHeight = 120;
 
@@ -65,12 +66,6 @@ class _MainAppState extends State<MainApp> {
     Map<String, dynamic> jsonData = jsonDecode(jsonString);
 
     print(jsonData);
-
-    // var alarms = await Alarm.getAlarms();
-    // print(alarms.length);
-    // for (var alarm in alarms) {
-    //   print(alarm);
-    // }
 
     setState(() {
       _alarms = List<Map<String, dynamic>>.from(jsonData["alarms"]);
@@ -271,6 +266,62 @@ class _MainAppState extends State<MainApp> {
     print(jsonData);
   }
 
+  void createFolder() async {
+    String folderName = folderNameController.text;
+
+    // Get the directory to store the JSON file
+    final directory = await getApplicationDocumentsDirectory();
+    final localFile = File('${directory.path}/data.json');
+
+    // Read the existing JSON from the local file
+    String jsonString = await localFile.readAsString();
+    Map<String, dynamic> jsonData = jsonDecode(jsonString);
+
+    // Create a new folder structure
+    Map<String, dynamic> newFolder = {
+      "folderName": folderName,
+      "alarms": [] // Initially no alarms in the new folder
+    };
+
+    // Add the new folder to the existing 'folders' list
+    jsonData["folders"].add(newFolder);
+
+    setState(() {
+      _folders.add(newFolder);
+    });
+
+    // Write the updated JSON back to the file
+    await localFile.writeAsString(jsonEncode(jsonData), flush: true);
+
+    print("New folder '$folderName' added successfully!");
+    print(jsonData); // To see the updated data structure
+  }
+
+  void deleteFolder(String folderNameToDelete) async {
+    // Get the directory and the file where the data is stored
+    final directory = await getApplicationDocumentsDirectory();
+    final localFile = File('${directory.path}/data.json');
+
+    // Read the JSON from the local file
+    String jsonString = await localFile.readAsString();
+    Map<String, dynamic> jsonData = jsonDecode(jsonString);
+
+    // Find the folder by its name and remove it from the "folders" list
+    jsonData["folders"]
+        .removeWhere((folder) => folder["folderName"] == folderNameToDelete);
+
+    setState(() {
+      _folders
+          .removeWhere((folder) => folder["folderName"] == folderNameToDelete);
+    });
+
+    // Write the updated JSON back to the file
+    await localFile.writeAsString(jsonEncode(jsonData), flush: true);
+
+    print("Folder '$folderNameToDelete' deleted successfully!");
+    print(jsonData); // To see the updated data structure
+  }
+
   //Set a single alarm
   Future<void> setAlarm(var alarmSettings) async {
     try {
@@ -329,6 +380,13 @@ class _MainAppState extends State<MainApp> {
   }
 
   @override
+  void dispose() {
+    // TODO: implement dispose
+    folderNameController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     double height = MediaQuery.sizeOf(context).height;
 
@@ -382,32 +440,9 @@ class _MainAppState extends State<MainApp> {
             children: [
               Row(
                 children: [
-                  Text('Test Alarm'),
+                  Text('Add Alarm'),
                   SizedBox(width: 20),
                   FloatingActionButton.small(
-                    heroTag: null,
-                    onPressed: () => setAlarm(alarmSettingsTest),
-                    child: Icon(Icons.folder),
-                  ),
-                ],
-              ),
-              Row(
-                children: [
-                  Text('Cancel Alarms'),
-                  SizedBox(width: 20),
-                  FloatingActionButton.small(
-                    heroTag: null,
-                    onPressed: () => cancelAlarms(),
-                    child: Icon(Icons.filter_alt_rounded),
-                  ),
-                ],
-              ),
-              Row(
-                children: [
-                  Text('Test Dialog'),
-                  SizedBox(width: 20),
-                  FloatingActionButton.small(
-                    heroTag: null,
                     onPressed: () => showDialog(
                         context: context,
                         builder: (context) {
@@ -422,9 +457,10 @@ class _MainAppState extends State<MainApp> {
                                 children: <Widget>[
                                   //Time Selection
                                   Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
                                       Text(
-                                          style: TextStyle(fontSize: 18),
+                                          style: TextStyle(fontSize: 28),
                                           "Select Time: "),
                                       IconButton(
                                           onPressed: () async {
@@ -522,6 +558,7 @@ class _MainAppState extends State<MainApp> {
 
                                   //Folder Selection
                                   DropdownMenu(
+                                    width: 200,
                                     enableFilter: true,
                                     requestFocusOnTap: true,
                                     leadingIcon: const Icon(Icons.search),
@@ -551,6 +588,7 @@ class _MainAppState extends State<MainApp> {
 
                                   //Buttons
                                   Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
                                       TextButton(
                                           onPressed: () {
@@ -605,7 +643,79 @@ class _MainAppState extends State<MainApp> {
                             ),
                           );
                         }),
-                    child: Icon(Icons.folder),
+                    child: Icon(Icons.alarm_add),
+                  ),
+                ],
+              ),
+              Row(
+                children: [
+                  Text('Add Folder'),
+                  SizedBox(width: 20),
+                  FloatingActionButton.small(
+                    heroTag: null,
+                    onPressed: () => showDialog(
+                        context: context,
+                        builder: (context) {
+                          return Dialog(
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12.0),
+                            ),
+                            child: SizedBox(
+                              width: 300,
+                              height: 200,
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    "Create New Folder",
+                                    style: TextStyle(fontSize: 32),
+                                  ),
+                                  SizedBox(
+                                    height: 30,
+                                  ),
+                                  SizedBox(
+                                    width: 200,
+                                    child: TextField(
+                                      controller: folderNameController,
+                                      decoration: const InputDecoration(
+                                          border: UnderlineInputBorder(),
+                                          labelText: "Input Folder Name"),
+                                    ),
+                                  ),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      TextButton(
+                                          onPressed: () {
+                                            folderNameController.text = "";
+                                            Navigator.pop(context);
+                                          },
+                                          child: Text("Cancel")),
+                                      TextButton(
+                                          onPressed: () {
+                                            createFolder();
+                                            Navigator.pop(context);
+                                          },
+                                          child: Text("Confirm"))
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }),
+                    child: Icon(Icons.create_new_folder_outlined),
+                  ),
+                ],
+              ),
+              Row(
+                children: [
+                  Text('Cancel Alarms'),
+                  SizedBox(width: 20),
+                  FloatingActionButton.small(
+                    heroTag: null,
+                    onPressed: () => cancelAlarms(),
+                    child: Icon(Icons.filter_alt_rounded),
                   ),
                 ],
               ),
@@ -681,19 +791,70 @@ class _MainAppState extends State<MainApp> {
                             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                             children: [
                               IconButton(
-                                  onPressed: () {
-                                    setState(() {
-                                      foldersOpen[index] =
-                                          !foldersOpen[index];
-                                    });
-                                  },
-                                  icon: foldersOpen[index] ? Icon(Icons.arrow_drop_down_circle_rounded) : Icon(Icons.arrow_drop_down_circle_outlined), iconSize: 40,),
+                                onPressed: () {
+                                  setState(() {
+                                    foldersOpen[index] = !foldersOpen[index];
+                                  });
+                                },
+                                icon: foldersOpen[index]
+                                    ? Icon(Icons.arrow_drop_down_circle_rounded)
+                                    : Icon(
+                                        Icons.arrow_drop_down_circle_outlined),
+                                iconSize: 40,
+                              ),
                               Text(
                                 folder["folderName"],
                                 style: TextStyle(fontSize: 60),
                               ),
                               IconButton(
-                                  onPressed: () => print("buttonPress"),
+                                  onPressed: () {
+                                    if (folder["alarms"].length <= 0) {
+                                      // print("No Alarms");
+                                      deleteFolder(folder["folderName"]);
+                                    } else {
+                                      showDialog(
+                                          context: context,
+                                          builder: (context) {
+                                            return Dialog(
+                                                shape: RoundedRectangleBorder(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            12.0)),
+                                                child: SizedBox(
+                                                    height: 100.0,
+                                                    width: 300.0,
+                                                    child: Column(children: [
+                                                      Text(
+                                                          style: TextStyle(
+                                                              fontSize: 32),
+                                                          "Confirm Delete"),
+                                                      Row(
+                                                        mainAxisAlignment:
+                                                            MainAxisAlignment
+                                                                .center,
+                                                        children: [
+                                                          TextButton(
+                                                              onPressed: () {
+                                                                Navigator.pop(
+                                                                    context);
+                                                              },
+                                                              child: Text(
+                                                                  "Cancel")),
+                                                          TextButton(
+                                                              onPressed: () {
+                                                                deleteFolder(folder[
+                                                                    "folderName"]);
+                                                                Navigator.pop(
+                                                                    context);
+                                                              },
+                                                              child: Text(
+                                                                  "Confirm"))
+                                                        ],
+                                                      ),
+                                                    ])));
+                                          });
+                                    }
+                                  },
                                   icon: Icon(Icons.delete)),
                             ],
                           ),
@@ -710,13 +871,13 @@ class _MainAppState extends State<MainApp> {
                                   int id = alarmData["settings"]["id"];
                                   DateTime datetime = DateTime.parse(
                                       alarmData["settings"]["dateTime"]);
-                      
+
                                   String timeOfDay =
                                       datetime.hour >= 12 ? "pm" : "am";
                                   int hourValue = datetime.hour > 12
                                       ? datetime.hour - 12
                                       : datetime.hour;
-                      
+
                                   return Container(
                                     decoration: BoxDecoration(
                                         border: Border.all(
