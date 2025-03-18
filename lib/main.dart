@@ -31,6 +31,7 @@ class _MainAppState extends State<MainApp> {
   AlarmSettings? alarmSettingsTest;
   Map<String, dynamic>? alarmSettingsToSave;
   Map<String, dynamic>? alarmSettingsToSavePreChange = {};
+  String? selectedFolder;
 
   List<Map<String, dynamic>> _alarms = [];
   List<Map<String, dynamic>> _folders = [];
@@ -80,38 +81,42 @@ class _MainAppState extends State<MainApp> {
     String jsonString = await localFile.readAsString();
     Map<String, dynamic> jsonData = jsonDecode(jsonString);
 
-    for (var alarm in _alarms) {
-      if (alarm.containsKey("repeatAlarmIds")) {
-        List<Map<String, dynamic>> repeatAlarms =
-            List<Map<String, dynamic>>.from(alarm["repeatAlarmIds"]);
-        List<int> repeatIds =
-            repeatAlarms.map((item) => item["id"] as int).toList();
-        repeatIds.forEach((id) => cancelAlarmById(id));
+    List<dynamic> alarms = jsonData['alarms'];
+    List<int> repeatAlarmIds = [];
+
+    for (var alarm in alarms) {
+      List<dynamic> repeatAlarms = alarm['repeatAlarmIds'];
+
+      for (var repeatAlarm in repeatAlarms) {
+        repeatAlarmIds.add(repeatAlarm['id']);
       }
     }
+
+    for (var id in repeatAlarmIds) {
+      cancelAlarmById(id);
+    }
+
     // Remove the alarm with the given ID
-    jsonData["alarms"]
-        .removeWhere((alarm) => alarm['settings']["id"] == alarmId);
+    alarms.removeWhere((alarm) => alarm['settings']["id"] == alarmId);
 
     setState(() {
       _alarms.removeWhere((alarm) => alarm["settings"]["id"] == alarmId);
     });
     cancelAlarmById(alarmId);
 
-    // Write back to file
     await localFile.writeAsString(jsonEncode(jsonData), flush: true);
-
-    print("Alarm with ID $alarmId deleted successfully!");
   }
 
   Future<void> setRepeats(var alarmSettings) async {
     repeatIds = [];
     DateTime now = DateTime.now();
 
+    var newId;
+    DateTime newTime;
+
     int selectedWeekDay = alarmTime.weekday; // 1 = Monday, 7 = Sunday
     for (int i = 0; i < repeatAlarm.length; i++) {
       if (repeatAlarm[i]) {
-        print(i);
         int daysToAdd = ((i + 1) - selectedWeekDay + 7) % 7;
         if (daysToAdd == 0 &&
             (alarmTime.hour < now.hour ||
@@ -120,11 +125,29 @@ class _MainAppState extends State<MainApp> {
           // If today is the target day but the time has passed, schedule for next week
           daysToAdd = 7;
         }
-        alarmTime = alarmTime.add(Duration(days: daysToAdd));
-        alarmId = Random().nextInt(100) + 1;
-        setAlarm(alarmSettings);
-        await Future.delayed(Duration(seconds: 2));
-        repeatIds.add({"id": alarmId});
+        newTime = alarmTime.add(Duration(days: daysToAdd));
+        newId = Random().nextInt(100) + 1;
+
+        AlarmSettings newSettings = AlarmSettings(
+          id: newId,
+          dateTime: newTime,
+          assetAudioPath: 'assets/alarm.mp3',
+          loopAudio: true,
+          vibrate: vibrate,
+          volume: 0.2,
+          fadeDuration: 3.0,
+          androidFullScreenIntent: true,
+          notificationSettings: const NotificationSettings(
+            title: 'This is the title',
+            body: 'This is the body',
+            stopButton: 'Stop the alarm',
+            // icon: 'notification_icon',
+          ),
+        );
+
+        setAlarm(newSettings);
+
+        repeatIds.add({"id": newId});
       }
     }
     repeatAlarm = List.filled(7, false);
@@ -257,6 +280,7 @@ class _MainAppState extends State<MainApp> {
             // icon: 'notification_icon',
           ),
         );
+
         alarmSettingsToSave = {
           "id": alarmId,
           "dateTime": alarmTime.toString(),
@@ -438,14 +462,11 @@ class _MainAppState extends State<MainApp> {
                                       contentPadding:
                                           EdgeInsets.symmetric(vertical: 5.0),
                                     ),
-                                    onSelected: (String? selectedFolder) {
-                                      if (selectedFolder != null) {
-                                        print("Folder $selectedFolder");
-
-                                        //Place alarm in folder on select and not in the alarms within the json
-                                      } else {
-                                        print("No Folder Selected");
-                                        //Place alarm in the alarms section of the json and set the alarm
+                                    onSelected: (String? _selectedFolder) {
+                                      if (_selectedFolder != null) {
+                                        setState(() {
+                                          selectedFolder = _selectedFolder;
+                                        });
                                       }
                                     },
                                     dropdownMenuEntries: _folders
@@ -478,8 +499,11 @@ class _MainAppState extends State<MainApp> {
                                                     alarmSettingsToSave;
                                               });
                                               await setAlarm(alarmSettingsTest);
-                                              await setRepeats(alarmSettingsTest);
-                                              
+                                              Future.delayed(
+                                                  Duration(seconds: 2));
+                                              await setRepeats(
+                                                  alarmSettingsTest);
+
                                               writeToJson(
                                                   "alarms",
                                                   "settings",
@@ -487,6 +511,7 @@ class _MainAppState extends State<MainApp> {
                                                   alarmSettingsToSavePreChange,
                                                   repeatIds);
                                             } else {
+                                              repeatIds = [];
                                               alarmId =
                                                   Random().nextInt(100) + 1;
                                               await setAlarm(alarmSettingsTest);

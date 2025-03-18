@@ -58,6 +58,37 @@
                     ]
                 }
             ]
+        },
+        {
+            "folderName": "Work",
+            "alarms": [
+                {
+                    "settings": {
+                        "id": 24,
+                        "dateTime": "2025-03-12 10:22:45.931238",
+                        "assetAudioPath": "assets/alarm.mp3",
+                        "loopAudio": "true",
+                        "vibrate": "true",
+                        "volume": "0.2",
+                        "fadeDuration": "3.0",
+                        "androidFullScreenIntent": true,
+                        "notificationSettings": {
+                            "title": "This is the title",
+                            "body": "This is the body",
+                            "stopButton": "Stop the alarm",
+                            "icon": "null"
+                        }
+                    },
+                    "repeatAlarmIds": [
+                        {
+                            "id": 1
+                        },
+                        {
+                            "id": 2
+                        }
+                    ]
+                }
+            ]
         }
     ]
 }
