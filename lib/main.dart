@@ -170,14 +170,7 @@ class _MainAppState extends State<MainApp> {
     }
   }
 
-  // Add alarm inside "School" folder if it exists
-  // for (var folder in jsonData["folders"]) {
-  //   if (folder["name"] == "School") {
-  //     folder["alarms"].add(newAlarm);
-  //   }
-  // }
-
-  void writeToJson(String collection, String document, String document2,
+  void writeToJson(String? collection, String document, String document2,
       var value, var value2) async {
     // Get local file path
     final directory = await getApplicationDocumentsDirectory();
@@ -190,17 +183,29 @@ class _MainAppState extends State<MainApp> {
     // New alarm to add
     Map<String, dynamic> newItem = {document: value, document2: value2};
 
-    // Add alarm to the list
-    jsonData[collection].add(newItem);
+    // Find the folder by collection (folderName)
+    bool folderFound = false;
+    for (var folder in jsonData["folders"]) {
+      if (folder["folderName"] == collection) {
+        // Add new alarm to the folder's alarms
+        folder["alarms"].add(newItem);
+        folderFound = true;
+        break;
+      }
+    }
 
-    if (document == "settings") {
+    // If the folder was not found, print an error message (or handle appropriately)
+    if (!folderFound) {
+      print("Folder '$collection' not found.");
       setState(() {
         _alarms.add(newItem);
       });
     }
-    // print("Data: $jsonData");
+
     // Write updated JSON back to the local file
     await localFile.writeAsString(jsonEncode(jsonData), flush: true);
+
+    // Optionally, print the updated JSON for debugging
     print(jsonData);
   }
 
@@ -490,36 +495,38 @@ class _MainAppState extends State<MainApp> {
                                           child: Text("Cancel")),
                                       TextButton(
                                           onPressed: () async {
+                                            alarmSettingsToSavePreChange =
+                                                alarmSettingsToSave;
                                             if (repeatAlarm.contains(true)) {
                                               setState(() {
                                                 repeatIds = [];
                                                 alarmId =
                                                     Random().nextInt(100) + 1;
-                                                alarmSettingsToSavePreChange =
-                                                    alarmSettingsToSave;
                                               });
                                               await setAlarm(alarmSettingsTest);
                                               Future.delayed(
                                                   Duration(seconds: 2));
                                               await setRepeats(
                                                   alarmSettingsTest);
-
-                                              writeToJson(
-                                                  "alarms",
-                                                  "settings",
-                                                  "repeatAlarmIds",
-                                                  alarmSettingsToSavePreChange,
-                                                  repeatIds);
                                             } else {
                                               repeatIds = [];
                                               alarmId =
                                                   Random().nextInt(100) + 1;
                                               await setAlarm(alarmSettingsTest);
+                                            }
+                                            if (selectedFolder != null) {
+                                              writeToJson(
+                                                  selectedFolder,
+                                                  "settings",
+                                                  "repeatAlarmIds",
+                                                  alarmSettingsToSavePreChange,
+                                                  repeatIds);
+                                            } else {
                                               writeToJson(
                                                   "alarms",
                                                   "settings",
                                                   "repeatAlarmIds",
-                                                  alarmSettingsToSave,
+                                                  alarmSettingsToSavePreChange,
                                                   repeatIds);
                                             }
                                             Navigator.pop(context);
