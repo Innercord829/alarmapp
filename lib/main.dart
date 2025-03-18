@@ -33,8 +33,12 @@ class _MainAppState extends State<MainApp> {
   Map<String, dynamic>? alarmSettingsToSavePreChange = {};
   String? selectedFolder;
 
+  double alarmContainerHeight = 120;
+
   List<Map<String, dynamic>> _alarms = [];
   List<Map<String, dynamic>> _folders = [];
+  List<bool> foldersOpen = List.filled(2, false);
+
   List<bool> repeatAlarm = List.filled(7, false);
 
   Future<void> ensureJsonFileIsValid() async {
@@ -74,37 +78,91 @@ class _MainAppState extends State<MainApp> {
     });
   }
 
-  Future<void> deleteAlarmById(int alarmId) async {
-    final directory = await getApplicationDocumentsDirectory();
-    final localFile = File('${directory.path}/data.json');
+  Future<void> deleteAlarmById(int alarmId, String? folderName) async {
+    try {
+      final directory = await getApplicationDocumentsDirectory();
+      final localFile = File('${directory.path}/data.json');
 
-    String jsonString = await localFile.readAsString();
-    Map<String, dynamic> jsonData = jsonDecode(jsonString);
-
-    List<dynamic> alarms = jsonData['alarms'];
-    List<int> repeatAlarmIds = [];
-
-    for (var alarm in alarms) {
-      List<dynamic> repeatAlarms = alarm['repeatAlarmIds'];
-
-      for (var repeatAlarm in repeatAlarms) {
-        repeatAlarmIds.add(repeatAlarm['id']);
+      if (!await localFile.exists()) {
+        print("Data file not found.");
+        return;
       }
+
+      // Read the JSON data
+      String jsonString = await localFile.readAsString();
+      Map<String, dynamic> jsonData = jsonDecode(jsonString);
+
+      List<int> repeatAlarmIds = [];
+
+      // If folderName is provided, delete from the folder
+      if (folderName != null) {
+        for (var folder in jsonData['folders']) {
+          if (folder['folderName'] == folderName) {
+            List<dynamic> alarms = folder['alarms'];
+
+            for (var alarm in alarms) {
+              if (alarm['settings']["id"] == alarmId) {
+                // Collect repeat alarms to cancel
+                List<dynamic> repeatAlarms = alarm['repeatAlarmIds'] ?? [];
+                for (var repeatAlarm in repeatAlarms) {
+                  repeatAlarmIds.add(repeatAlarm['id']);
+                }
+              }
+            }
+
+            // Remove the alarm
+            alarms.removeWhere((alarm) => alarm['settings']["id"] == alarmId);
+            print("Alarm with ID $alarmId removed from folder '$folderName'.");
+          }
+        }
+      } else {
+        // Delete from the main 'alarms' list if no folderName is provided
+        List<dynamic> alarms = jsonData['alarms'];
+
+        for (var alarm in alarms) {
+          if (alarm['settings']["id"] == alarmId) {
+            // Collect repeat alarms to cancel
+            List<dynamic> repeatAlarms = alarm['repeatAlarmIds'] ?? [];
+            for (var repeatAlarm in repeatAlarms) {
+              repeatAlarmIds.add(repeatAlarm['id']);
+            }
+          }
+        }
+
+        // Remove the alarm from the main alarms list
+        alarms.removeWhere((alarm) => alarm['settings']["id"] == alarmId);
+        print("Alarm with ID $alarmId removed from main alarms.");
+      }
+
+      // Cancel repeat alarms
+      for (var id in repeatAlarmIds) {
+        cancelAlarmById(id);
+        print("Repeat alarm with ID $id cancelled.");
+      }
+
+      cancelAlarmById(alarmId);
+      print("Primary alarm with ID $alarmId cancelled.");
+
+      // Update state and UI
+      setState(() {
+        if (folderName != null) {
+          var folder = _folders.firstWhere((f) => f["folderName"] == folderName,
+              orElse: () => {});
+          if (folder.isNotEmpty) {
+            folder['alarms']
+                .removeWhere((alarm) => alarm["settings"]["id"] == alarmId);
+          }
+        } else {
+          _alarms.removeWhere((alarm) => alarm["settings"]["id"] == alarmId);
+        }
+      });
+
+      // Write back to the JSON file
+      await localFile.writeAsString(jsonEncode(jsonData), flush: true);
+      print("JSON updated successfully.");
+    } catch (e) {
+      print("Error deleting alarm: $e");
     }
-
-    for (var id in repeatAlarmIds) {
-      cancelAlarmById(id);
-    }
-
-    // Remove the alarm with the given ID
-    alarms.removeWhere((alarm) => alarm['settings']["id"] == alarmId);
-
-    setState(() {
-      _alarms.removeWhere((alarm) => alarm["settings"]["id"] == alarmId);
-    });
-    cancelAlarmById(alarmId);
-
-    await localFile.writeAsString(jsonEncode(jsonData), flush: true);
   }
 
   Future<void> setRepeats(var alarmSettings) async {
@@ -189,6 +247,9 @@ class _MainAppState extends State<MainApp> {
       if (folder["folderName"] == collection) {
         // Add new alarm to the folder's alarms
         folder["alarms"].add(newItem);
+        setState(() {
+          _folders = List<Map<String, dynamic>>.from(jsonData["folders"]);
+        });
         folderFound = true;
         break;
       }
@@ -197,6 +258,7 @@ class _MainAppState extends State<MainApp> {
     // If the folder was not found, print an error message (or handle appropriately)
     if (!folderFound) {
       print("Folder '$collection' not found.");
+      jsonData["alarms"].add(newItem);
       setState(() {
         _alarms.add(newItem);
       });
@@ -218,6 +280,7 @@ class _MainAppState extends State<MainApp> {
     }
   }
 
+  //Testing Function
   void cancelAlarms() async {
     print("alarms canceled");
     // deleteAlarmById(52);
@@ -244,6 +307,7 @@ class _MainAppState extends State<MainApp> {
     return List<Map>.from(jsonData[document]);
   }
 
+  //Example of filtering
   Future<List<Map>> findAlarmsById(int alarmId) async {
     List<Map> alarms = await readJsonFile("alarms");
 
@@ -260,6 +324,7 @@ class _MainAppState extends State<MainApp> {
     // TODO: implement initState
     ensureJsonFileIsValid();
     loadData();
+
     super.initState();
   }
 
@@ -529,6 +594,7 @@ class _MainAppState extends State<MainApp> {
                                                   alarmSettingsToSavePreChange,
                                                   repeatIds);
                                             }
+                                            selectedFolder = null;
                                             Navigator.pop(context);
                                           },
                                           child: Text("Confirm"))
@@ -545,9 +611,10 @@ class _MainAppState extends State<MainApp> {
               ),
             ],
           ),
-          //Alarms
+
           body: Column(
             children: [
+              //Alarms
               SizedBox(
                 height: height / 2,
                 child: ListView.builder(
@@ -558,23 +625,23 @@ class _MainAppState extends State<MainApp> {
                       // Convert string back to datetime object to get hour/minute values
                       DateTime datetime =
                           DateTime.parse(alarmData["settings"]["dateTime"]);
-                      // if (datetime.hour > 12) {
-                      //   timeOfDay = "pm";
-                      //   hourValue = datetime.hour - 12;
-                      // } else {
-                      //   timeOfDay = "am";
-                      //   hourValue = datetime.hour;
-                      // }
+                      if (datetime.hour > 12) {
+                        timeOfDay = "pm";
+                        hourValue = datetime.hour - 12;
+                      } else {
+                        timeOfDay = "am";
+                        hourValue = datetime.hour;
+                      }
                       return Container(
+                        height: alarmContainerHeight,
                         decoration: BoxDecoration(
                             border: Border.all(color: Colors.black, width: 2)),
                         child: Column(
                           children: [
-                            // Text("Test"),
                             Row(
                               children: [
                                 IconButton(
-                                    onPressed: () => deleteAlarmById(id),
+                                    onPressed: () => deleteAlarmById(id, null),
                                     icon: Icon(Icons.delete)),
                                 Text(
                                     style: TextStyle(fontSize: 60),
@@ -594,44 +661,102 @@ class _MainAppState extends State<MainApp> {
                       );
                     }),
               ),
-              //Alarms that arent in folder
 
               //Folders
               SizedBox(
                 height: height / 2,
                 child: ListView.builder(
-                    itemCount: _folders.length,
-                    itemBuilder: (context, index) {
-                      var folder = _folders[index];
-                      var alarmSettings = folder['settings'];
-                      // print(alarmSettings["id"]);
-
-                      //Convert string back to datetime object to get hour/minute values
-                      DateTime datetime = new DateTime.now();
-                      // DateTime.parse(alarmInFolder["datetime"]);
-                      if (datetime.hour > 12) {
-                        timeOfDay = "pm";
-                        hourValue = datetime.hour - 12;
-                      } else {
-                        timeOfDay = "am";
-                        hourValue = datetime.hour;
-                      }
-                      return Container(
-                        decoration: BoxDecoration(
-                            border: Border.all(color: Colors.black, width: 2)),
-                        child: Column(
-                          children: [
-                            Text(
+                  itemCount: _folders.length,
+                  itemBuilder: (context, index) {
+                    var folder = _folders[index];
+                    var alarms = folder["alarms"];
+                    return Container(
+                      height: foldersOpen[index]
+                          ? 100 + (alarmContainerHeight * 2)
+                          : 100,
+                      decoration: BoxDecoration(border: Border.all(width: 2)),
+                      child: Column(
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: [
+                              IconButton(
+                                  onPressed: () {
+                                    setState(() {
+                                      foldersOpen[index] =
+                                          !foldersOpen[index];
+                                    });
+                                  },
+                                  icon: foldersOpen[index] ? Icon(Icons.arrow_drop_down_circle_rounded) : Icon(Icons.arrow_drop_down_circle_outlined), iconSize: 40,),
+                              Text(
+                                folder["folderName"],
                                 style: TextStyle(fontSize: 60),
-                                folder["folderName"]),
-                            IconButton(
-                              icon: Icon(Icons.abc),
-                              onPressed: null,
+                              ),
+                              IconButton(
+                                  onPressed: () => print("buttonPress"),
+                                  icon: Icon(Icons.delete)),
+                            ],
+                          ),
+                          //Buttons within the folder
+                          Visibility(
+                            visible: foldersOpen[index],
+                            child: SizedBox(
+                              height: alarmContainerHeight * 2,
+                              child: ListView.builder(
+                                shrinkWrap: true,
+                                itemCount: alarms.length,
+                                itemBuilder: (context, alarmIndex) {
+                                  var alarmData = alarms[alarmIndex];
+                                  int id = alarmData["settings"]["id"];
+                                  DateTime datetime = DateTime.parse(
+                                      alarmData["settings"]["dateTime"]);
+                      
+                                  String timeOfDay =
+                                      datetime.hour >= 12 ? "pm" : "am";
+                                  int hourValue = datetime.hour > 12
+                                      ? datetime.hour - 12
+                                      : datetime.hour;
+                      
+                                  return Container(
+                                    decoration: BoxDecoration(
+                                        border: Border.all(
+                                            color: Colors.black, width: 2)),
+                                    child: Column(
+                                      children: [
+                                        Row(
+                                          children: [
+                                            IconButton(
+                                              onPressed: () {
+                                                deleteAlarmById(
+                                                    id, folder["folderName"]);
+                                              },
+                                              icon: Icon(Icons.delete),
+                                            ),
+                                            Text(
+                                              "$hourValue:${datetime.minute} $timeOfDay",
+                                              style: TextStyle(fontSize: 60),
+                                            ),
+                                          ],
+                                        ),
+                                        Row(
+                                          children: [
+                                            Text("$datetime"),
+                                            Spacer(),
+                                            Text("$id"),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              ),
                             ),
-                          ],
-                        ),
-                      );
-                    }),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
               )
             ],
           ),
