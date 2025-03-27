@@ -24,6 +24,7 @@ class MainApp extends StatefulWidget {
 class _MainAppState extends State<MainApp> {
   String timeOfDay = "am";
   int? hourValue;
+  int? minuteValue;
   DateTime alarmTime = DateTime.now();
   int alarmId = Random().nextInt(100) + 1;
   bool vibrate = true;
@@ -163,8 +164,7 @@ class _MainAppState extends State<MainApp> {
   Future<void> setRepeats(var alarmSettings) async {
     repeatIds = [];
     DateTime now = DateTime.now();
-
-    var newId;
+    int newId;
     DateTime newTime;
 
     int selectedWeekDay = alarmTime.weekday; // 1 = Monday, 7 = Sunday
@@ -228,14 +228,11 @@ class _MainAppState extends State<MainApp> {
     // Get local file path
     final directory = await getApplicationDocumentsDirectory();
     final localFile = File('${directory.path}/data.json');
-
     // Read JSON from the local file
     String jsonString = await localFile.readAsString();
     Map<String, dynamic> jsonData = jsonDecode(jsonString);
-
     // New alarm to add
     Map<String, dynamic> newItem = {document: value, document2: value2};
-
     // Find the folder by collection (folderName)
     bool folderFound = false;
     for (var folder in jsonData["folders"]) {
@@ -249,7 +246,6 @@ class _MainAppState extends State<MainApp> {
         break;
       }
     }
-
     // If the folder was not found, print an error message (or handle appropriately)
     if (!folderFound) {
       print("Folder '$collection' not found.");
@@ -258,12 +254,10 @@ class _MainAppState extends State<MainApp> {
         _alarms.add(newItem);
       });
     }
-
     // Write updated JSON back to the local file
     await localFile.writeAsString(jsonEncode(jsonData), flush: true);
 
-    // Optionally, print the updated JSON for debugging
-    print(jsonData);
+    // print(jsonData);
   }
 
   void createFolder() async {
@@ -294,7 +288,7 @@ class _MainAppState extends State<MainApp> {
     await localFile.writeAsString(jsonEncode(jsonData), flush: true);
 
     print("New folder '$folderName' added successfully!");
-    print(jsonData); // To see the updated data structure
+    print(jsonData);
   }
 
   void deleteFolder(String folderNameToDelete) async {
@@ -756,7 +750,7 @@ class _MainAppState extends State<MainApp> {
                                 Text(
                                     style: TextStyle(fontSize: 60),
                                     // "${hourValue}:${alarmTimes[index].minute} ${timeOfDay}"
-                                    "${datetime.hour}:${datetime.minute} ${timeOfDay}"),
+                                    "${hourValue}:${datetime.minute} ${timeOfDay}"),
                               ],
                             ),
                             Row(
