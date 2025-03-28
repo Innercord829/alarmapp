@@ -200,7 +200,7 @@ class _MainAppState extends State<MainApp> {
 
         setAlarm(newSettings);
 
-        repeatIds.add({"id": newId});
+        repeatIds.add({"id": newId, "day": newTime.weekday});
       }
     }
     repeatAlarm = List.filled(7, false);
@@ -231,7 +231,7 @@ class _MainAppState extends State<MainApp> {
     // Read JSON from the local file
     String jsonString = await localFile.readAsString();
     Map<String, dynamic> jsonData = jsonDecode(jsonString);
-    // New alarm to add
+    // New alarm/folder to add
     Map<String, dynamic> newItem = {document: value, document2: value2};
     // Find the folder by collection (folderName)
     bool folderFound = false;
@@ -594,6 +594,13 @@ class _MainAppState extends State<MainApp> {
                                           onPressed: () async {
                                             alarmSettingsToSavePreChange =
                                                 alarmSettingsToSave;
+                                            if (alarmTime
+                                                .isBefore(DateTime.now())) {
+                                              setState(() {
+                                                alarmTime
+                                                    .add(Duration(days: 1));
+                                              });
+                                            }
                                             if (repeatAlarm.contains(true)) {
                                               setState(() {
                                                 repeatIds = [];
@@ -718,7 +725,7 @@ class _MainAppState extends State<MainApp> {
 
           body: Column(
             children: [
-              //Alarms
+              //Alarms Display
               SizedBox(
                 height: height / 2,
                 child: ListView.builder(
@@ -726,6 +733,9 @@ class _MainAppState extends State<MainApp> {
                     itemBuilder: (context, index) {
                       var alarmData = _alarms[index];
                       int id = alarmData["settings"]["id"];
+                      List<dynamic> repeatAlarmData =
+                          alarmData["repeatAlarmIds"];
+                      // print(repeatAlarmData[index]["day"].toString());
                       // Convert string back to datetime object to get hour/minute values
                       DateTime datetime =
                           DateTime.parse(alarmData["settings"]["dateTime"]);
@@ -750,15 +760,56 @@ class _MainAppState extends State<MainApp> {
                                 Text(
                                     style: TextStyle(fontSize: 60),
                                     // "${hourValue}:${alarmTimes[index].minute} ${timeOfDay}"
-                                    "${hourValue}:${datetime.minute} ${timeOfDay}"),
+                                    (datetime.minute.toString().length == 1)
+                                        ? "${hourValue}:0${datetime.minute} ${timeOfDay}"
+                                        : "${hourValue}:${datetime.minute} ${timeOfDay}"),
                               ],
                             ),
-                            Row(
-                              children: [
-                                Text("$datetime"),
-                                Spacer(),
-                                Text("$id")
-                              ],
+                            SizedBox(
+                              height: 25,
+                              child: ListView.builder(
+                                scrollDirection: Axis.horizontal,
+                                itemCount: 7, // Number of days in a week
+                                itemBuilder: (context, index) {
+                                  // Check if the day at repeatAlarmData[index]['day'] exists in repeatAlarmData
+                                  bool isDaySelected = repeatAlarmData
+                                      .any((data) => data['day'] - 1 == index);
+
+                                  // Return the appropriate icon based on whether the day is in repeatAlarmData
+                                  switch (index) {
+                                    case 6:
+                                      return Icon(isDaySelected
+                                          ? Mdi.alphaSCircle
+                                          : Mdi.alphaSCircleOutline);
+                                    case 0:
+                                      return Icon(isDaySelected
+                                          ? Mdi.alphaMCircle
+                                          : Mdi.alphaMCircleOutline);
+                                    case 1:
+                                      return Icon(isDaySelected
+                                          ? Mdi.alphaTCircle
+                                          : Mdi.alphaTCircleOutline);
+                                    case 2:
+                                      return Icon(isDaySelected
+                                          ? Mdi.alphaWCircle
+                                          : Mdi.alphaWCircleOutline);
+                                    case 3:
+                                      return Icon(isDaySelected
+                                          ? Mdi.alphaTCircle
+                                          : Mdi.alphaTCircleOutline);
+                                    case 4:
+                                      return Icon(isDaySelected
+                                          ? Mdi.alphaFCircle
+                                          : Mdi.alphaFCircleOutline);
+                                    case 5:
+                                      return Icon(isDaySelected
+                                          ? Mdi.alphaSCircle
+                                          : Mdi.alphaSCircleOutline);
+                                    default:
+                                      return SizedBox(); // Fallback case if the index is invalid
+                                  }
+                                },
+                              ),
                             ),
                           ],
                         ),
@@ -863,6 +914,8 @@ class _MainAppState extends State<MainApp> {
                                 itemBuilder: (context, alarmIndex) {
                                   var alarmData = alarms[alarmIndex];
                                   int id = alarmData["settings"]["id"];
+                                  List<dynamic> repeatAlarmData =
+                                      alarmData["repeatAlarmIds"];
                                   DateTime datetime = DateTime.parse(
                                       alarmData["settings"]["dateTime"]);
 
@@ -893,12 +946,61 @@ class _MainAppState extends State<MainApp> {
                                             ),
                                           ],
                                         ),
-                                        Row(
-                                          children: [
-                                            Text("$datetime"),
-                                            Spacer(),
-                                            Text("$id"),
-                                          ],
+                                        SizedBox(
+                                          height: 25,
+                                          child: ListView.builder(
+                                            scrollDirection: Axis.horizontal,
+                                            itemCount:
+                                                7, // Number of days in a week
+                                            itemBuilder: (context, index) {
+                                              // Check if the day at repeatAlarmData[index]['day'] exists in repeatAlarmData
+
+                                              bool isDaySelected =
+                                                  repeatAlarmData.any((data) =>
+                                                      data['day'] - 1 == index);
+
+                                              // Return the appropriate icon based on whether the day is in repeatAlarmData
+                                              switch (index) {
+                                                case 6:
+                                                  return Icon(isDaySelected
+                                                      ? Mdi.alphaSCircle
+                                                      : Mdi
+                                                          .alphaSCircleOutline);
+                                                case 0:
+                                                  return Icon(isDaySelected
+                                                      ? Mdi.alphaMCircle
+                                                      : Mdi
+                                                          .alphaMCircleOutline);
+                                                case 1:
+                                                  return Icon(isDaySelected
+                                                      ? Mdi.alphaTCircle
+                                                      : Mdi
+                                                          .alphaTCircleOutline);
+                                                case 2:
+                                                  return Icon(isDaySelected
+                                                      ? Mdi.alphaWCircle
+                                                      : Mdi
+                                                          .alphaWCircleOutline);
+                                                case 3:
+                                                  return Icon(isDaySelected
+                                                      ? Mdi.alphaTCircle
+                                                      : Mdi
+                                                          .alphaTCircleOutline);
+                                                case 4:
+                                                  return Icon(isDaySelected
+                                                      ? Mdi.alphaFCircle
+                                                      : Mdi
+                                                          .alphaFCircleOutline);
+                                                case 5:
+                                                  return Icon(isDaySelected
+                                                      ? Mdi.alphaSCircle
+                                                      : Mdi
+                                                          .alphaSCircleOutline);
+                                                default:
+                                                  return SizedBox(); // Fallback case if the index is invalid
+                                              }
+                                            },
+                                          ),
                                         ),
                                       ],
                                     ),

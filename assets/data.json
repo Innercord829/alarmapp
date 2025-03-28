@@ -19,10 +19,13 @@
             },
             "repeatAlarmIds": [
                 {
-                    "id": 1
+                    "id": 1,
+                    "days" : 1
+                    
                 },
                 {
-                    "id": 2
+                    "id": 2,
+                    "days" : 1
                 }
             ]
         }
@@ -50,10 +53,12 @@
                     },
                     "repeatAlarmIds": [
                         {
-                            "id": 1
+                            "id": 1,
+                            "day" : 2
                         },
                         {
-                            "id": 2
+                            "id": 2,
+                            "day" : 5
                         }
                     ]
                 }
