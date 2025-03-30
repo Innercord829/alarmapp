@@ -20,14 +20,14 @@
             "repeatAlarmIds": [
                 {
                     "id": 1,
-                    "days" : 1
-                    
+                    "day": 1
                 },
                 {
                     "id": 2,
-                    "days" : 1
+                    "day": 1
                 }
-            ]
+            ],
+            "isActive": 1
         }
     ],
     "folders": [
@@ -54,13 +54,14 @@
                     "repeatAlarmIds": [
                         {
                             "id": 1,
-                            "day" : 2
+                            "day": 2
                         },
                         {
                             "id": 2,
-                            "day" : 5
+                            "day": 5
                         }
-                    ]
+                    ],
+                    "isActive": 1
                 }
             ]
         }

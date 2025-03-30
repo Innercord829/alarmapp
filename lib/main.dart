@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_expandable_fab/flutter_expandable_fab.dart';
 import 'package:mdi/mdi.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:toggle_switch/toggle_switch.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -232,7 +233,11 @@ class _MainAppState extends State<MainApp> {
     String jsonString = await localFile.readAsString();
     Map<String, dynamic> jsonData = jsonDecode(jsonString);
     // New alarm/folder to add
-    Map<String, dynamic> newItem = {document: value, document2: value2};
+    Map<String, dynamic> newItem = {
+      document: value,
+      document2: value2,
+      "isActive": 1
+    };
     // Find the folder by collection (folderName)
     bool folderFound = false;
     for (var folder in jsonData["folders"]) {
@@ -316,6 +321,120 @@ class _MainAppState extends State<MainApp> {
     print(jsonData); // To see the updated data structure
   }
 
+  void getRepeatAlarmDays(Map<String, dynamic> alarmData) {
+    var repeatAlarms = alarmData["repeatAlarmIds"];
+    // repeatAlarm = List.filled(7, false);
+    for (var day in repeatAlarms) {
+      repeatAlarm[day["day"] - 1] = true;
+    }
+  }
+
+  void activateAlarm(Map<String, dynamic> alarmData) async {
+    AlarmSettings newAlarmSettings;
+    var alarmSettings = alarmData["settings"];
+    int alarmId = alarmSettings["id"];
+    DateTime dateTime = DateTime.parse(alarmSettings["dateTime"]);
+
+    newAlarmSettings = AlarmSettings(
+      id: alarmId,
+      dateTime: dateTime,
+      assetAudioPath: 'assets/alarm.mp3',
+      loopAudio: true,
+      vibrate: vibrate,
+      volume: 0.2,
+      fadeDuration: 3.0,
+      androidFullScreenIntent: true,
+      notificationSettings: const NotificationSettings(
+        title: 'This is the title',
+        body: 'This is the body',
+        stopButton: 'Stop the alarm',
+        // icon: 'notification_icon',
+      ),
+    );
+
+    getRepeatAlarmDays(alarmData);
+
+    setAlarm(newAlarmSettings);
+    setRepeats(newAlarmSettings);
+
+    updateJson("alarms", alarmId, "isActive", 1);
+    await Future.delayed(Duration(seconds: 1));
+    updateJson("alarms", alarmId, "repeatAlarmIds", repeatIds);
+  }
+
+  void updateJson(String? collection, int alarmId, String fieldToUpdate,
+      dynamic newValue) async {
+    // Get local file path
+    final directory = await getApplicationDocumentsDirectory();
+    final localFile = File('${directory.path}/data.json');
+
+    // Read JSON from the local file
+    String jsonString = await localFile.readAsString();
+    Map<String, dynamic> jsonData = jsonDecode(jsonString);
+
+    bool updated = false;
+
+    // Check folders for the alarm and update
+    if (collection != null) {
+      for (var folder in jsonData["folders"] ?? []) {
+        if (folder["folderName"] == collection) {
+          for (var alarm in folder["alarms"] ?? []) {
+            if (alarm["settings"]?["id"] == alarmId) {
+              alarm[fieldToUpdate] = newValue;
+              updated = true;
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    // Check alarms section if not found in folders
+    if (!updated) {
+      for (var alarm in jsonData["alarms"] ?? []) {
+        if (alarm["settings"]?["id"] == alarmId) {
+          alarm[fieldToUpdate] = newValue;
+          updated = true;
+          break;
+        }
+      }
+      for (var alarm in _alarms) {
+        if (alarm["settings"]?["id"] == alarmId) {
+          alarm[fieldToUpdate] = newValue;
+          updated = true;
+          break;
+        }
+      }
+    }
+
+    if (!updated) {
+      print("Alarm with ID $alarmId not found.");
+    } else {
+      // Write updated JSON back to the local file
+      setState(() {
+        if (collection == "alarms") {
+          _alarms = List<Map<String, dynamic>>.from(jsonData["alarms"]);
+        } else {
+          _folders = List<Map<String, dynamic>>.from(jsonData["folders"]);
+        }
+      });
+      await localFile.writeAsString(jsonEncode(jsonData), flush: true);
+      print("Alarm updated successfully.");
+    }
+  }
+
+  void deactivateAlarm(Map<String, dynamic> alarmData) {
+    int mainAlarmId = alarmData["settings"]["id"];
+    List<dynamic> repeatAlarmIds = alarmData["repeatAlarmIds"];
+    cancelAlarmById(mainAlarmId);
+
+    for (var alarmIds in repeatAlarmIds) {
+      cancelAlarmById(alarmIds["id"]);
+    }
+
+    updateJson("alarms", mainAlarmId, "isActive", 0);
+  }
+
   //Set a single alarm
   Future<void> setAlarm(var alarmSettings) async {
     try {
@@ -328,7 +447,6 @@ class _MainAppState extends State<MainApp> {
   //Testing Function
   void cancelAlarms() async {
     print("alarms canceled");
-    // deleteAlarmById(52);
     await Alarm.stopAll();
   }
 
@@ -733,6 +851,7 @@ class _MainAppState extends State<MainApp> {
                     itemBuilder: (context, index) {
                       var alarmData = _alarms[index];
                       int id = alarmData["settings"]["id"];
+                      int isActive = alarmData["isActive"];
                       List<dynamic> repeatAlarmData =
                           alarmData["repeatAlarmIds"];
                       // print(repeatAlarmData[index]["day"].toString());
@@ -747,7 +866,7 @@ class _MainAppState extends State<MainApp> {
                         hourValue = datetime.hour;
                       }
                       return Container(
-                        height: alarmContainerHeight,
+                        height: alarmContainerHeight + 35,
                         decoration: BoxDecoration(
                             border: Border.all(color: Colors.black, width: 2)),
                         child: Column(
@@ -810,6 +929,30 @@ class _MainAppState extends State<MainApp> {
                                   }
                                 },
                               ),
+                            ),
+                            ToggleSwitch(
+                              minWidth: 90.0,
+                              cornerRadius: 20.0,
+                              activeBgColors: [
+                                [Colors.red[800]!],
+                                [Colors.green[800]!]
+                              ],
+                              activeFgColor: Colors.white,
+                              inactiveBgColor: Colors.grey,
+                              inactiveFgColor: Colors.white,
+                              initialLabelIndex: isActive,
+                              totalSwitches: 2,
+                              labels: ['False', 'True'],
+                              radiusStyle: true,
+                              onToggle: (index) {
+                                if (index == 0) {
+                                  print("false");
+                                  deactivateAlarm(alarmData);
+                                } else {
+                                  print("true");
+                                  activateAlarm(alarmData);
+                                }
+                              },
                             ),
                           ],
                         ),
